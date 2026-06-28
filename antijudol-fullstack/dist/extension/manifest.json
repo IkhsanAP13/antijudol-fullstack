@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "ANTI-JUDOL - Campus Gambling Blocker",
+  "version": "1.0.0",
+  "description": "Automatically blocks gambling sites and ads, monitors activity for campus administrators",
+  "permissions": [
+    "tabs",
+    "webRequest",
+    "storage",
+    "alarms",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "gambling_blocklist",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
