@@ -88,9 +88,15 @@ app.get('/api/devices', verifyToken, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        id, device_id AS "deviceId", device_name AS "deviceName",
-        location, extension_version AS "extensionVersion", browser,
-        status, last_seen AS "lastSeen", blocked_today AS "blockedToday",
+        id, device_id AS "deviceId",
+        COALESCE(device_name, device_id) AS "deviceName",
+        COALESCE(location, '-') AS location,
+        extension_version AS "extensionVersion", browser,
+        CASE
+          WHEN last_seen > NOW() - INTERVAL '5 minutes' THEN 'online'
+          ELSE 'offline'
+        END AS status,
+        last_seen AS "lastSeen", blocked_today AS "blockedToday",
         registered_at AS "registeredAt"
       FROM devices
       ORDER BY last_seen DESC NULLS LAST
@@ -132,11 +138,12 @@ app.post('/api/heartbeat', async (req, res) => {
   if (!deviceId) return res.status(400).json({ message: 'deviceId wajib diisi.' });
 
   try {
+    const blockedToday = (stats?.sitesBlocked || 0) + (stats?.adsBlocked || 0);
     await pool.query(`
       UPDATE devices
       SET last_seen = NOW(), status = 'online', blocked_today = $2
       WHERE device_id = $1
-    `, [deviceId, stats?.sitesBlocked || 0]);
+    `, [deviceId, blockedToday]);
 
     res.json({ success: true, serverTime: new Date().toISOString() });
   } catch (err) {
@@ -150,20 +157,25 @@ app.post('/api/heartbeat', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════
 
 app.get('/api/logs', verifyToken, async (req, res) => {
-  const { deviceId, limit = 50, offset = 0 } = req.query;
+  const { deviceId, type, limit = 50, offset = 0 } = req.query;
   try {
     const params = [parseInt(limit), parseInt(offset)];
-    let where = '';
+    const conditions = [];
     if (deviceId) {
-      where = 'WHERE l.device_id = $3';
       params.push(deviceId);
+      conditions.push(`l.device_id = $${params.length}`);
     }
+    if (type) {
+      params.push(type);
+      conditions.push(`l.type = $${params.length}`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const result = await pool.query(`
       SELECT
         l.id, l.device_id AS "deviceId",
         COALESCE(d.device_name, l.device_id) AS "deviceName",
-        l.timestamp, l.type, l.url, l.category
+        l.timestamp, l.type, l.url, l.category, l.reason, l.selector
       FROM logs l
       LEFT JOIN devices d ON d.device_id = l.device_id
       ${where}
@@ -262,6 +274,146 @@ app.post('/api/blocklist', verifyToken, async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// MALICIOUS REDIRECT PROTECTION
+// ═══════════════════════════════════════════════════════════════════
+
+// Buat tabel bila belum ada (tanpa perlu migrasi manual)
+async function initRedirectTables() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS redirect_settings (
+      id          INT PRIMARY KEY DEFAULT 1,
+      enabled     BOOLEAN NOT NULL DEFAULT TRUE,
+      sensitivity VARCHAR(10) NOT NULL DEFAULT 'medium',
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT redirect_settings_singleton CHECK (id = 1)
+    );
+  `);
+  await pool.query(`INSERT INTO redirect_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS redirect_whitelist (
+      id       BIGSERIAL PRIMARY KEY,
+      pattern  VARCHAR(255) UNIQUE NOT NULL,
+      added_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS redirect_logs (
+      id         BIGSERIAL PRIMARY KEY,
+      device_id  VARCHAR(255),
+      target_url TEXT,
+      from_url   TEXT,
+      reason     VARCHAR(255),
+      method     VARCHAR(50),
+      timestamp  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_redirect_logs_ts ON redirect_logs(timestamp DESC);`);
+}
+
+// GET config (publik — dipakai extension)
+app.get('/api/redirect/config', async (req, res) => {
+  try {
+    const [s, w] = await Promise.all([
+      pool.query(`SELECT enabled, sensitivity FROM redirect_settings WHERE id = 1`),
+      pool.query(`SELECT pattern FROM redirect_whitelist ORDER BY added_at`),
+    ]);
+    const row = s.rows[0] || { enabled: true, sensitivity: 'medium' };
+    res.json({
+      enabled: row.enabled,
+      sensitivity: row.sensitivity,
+      whitelist: w.rows.map((r) => r.pattern),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+// POST config (admin)
+app.post('/api/redirect/config', verifyToken, async (req, res) => {
+  const { enabled, sensitivity } = req.body;
+  const sens = ['low', 'medium', 'high'].includes(sensitivity) ? sensitivity : 'medium';
+  try {
+    await pool.query(
+      `UPDATE redirect_settings SET enabled = $1, sensitivity = $2, updated_at = NOW() WHERE id = 1`,
+      [enabled !== false, sens]
+    );
+    res.json({ success: true, enabled: enabled !== false, sensitivity: sens });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+// POST whitelist add/remove (admin)
+app.post('/api/redirect/whitelist', verifyToken, async (req, res) => {
+  const { domains, action } = req.body;
+  if (!Array.isArray(domains) || !action)
+    return res.status(400).json({ message: 'domains dan action wajib diisi.' });
+  try {
+    if (action === 'add') {
+      for (const p of domains) {
+        await pool.query(
+          `INSERT INTO redirect_whitelist (pattern) VALUES ($1) ON CONFLICT DO NOTHING`,
+          [p]
+        );
+      }
+    } else if (action === 'remove') {
+      for (const p of domains) {
+        await pool.query(`DELETE FROM redirect_whitelist WHERE pattern = $1`, [p]);
+      }
+    }
+    const w = await pool.query(`SELECT pattern FROM redirect_whitelist ORDER BY added_at`);
+    res.json({ success: true, whitelist: w.rows.map((r) => r.pattern) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+// POST log redirect diblokir (publik — dari extension)
+app.post('/api/redirect/logs', async (req, res) => {
+  const { deviceId, target, from, reason, method, timestamp } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO redirect_logs (device_id, target_url, from_url, reason, method, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [deviceId || null, target || '', from || '', reason || '', method || '', timestamp || new Date()]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+// GET daftar log redirect (admin — untuk dashboard)
+app.get('/api/redirect/logs', verifyToken, async (req, res) => {
+  const { limit = 100 } = req.query;
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        l.id, l.device_id AS "deviceId",
+        COALESCE(d.device_name, l.device_id) AS "deviceName",
+        l.target_url AS "target", l.from_url AS "from",
+        l.reason, l.method, l.timestamp
+      FROM redirect_logs l
+      LEFT JOIN devices d ON d.device_id = l.device_id
+      ORDER BY l.timestamp DESC
+      LIMIT $1
+    `,
+      [parseInt(limit)]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
 // ─── Semua route lain → kirim index.html (React Router) ──────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
@@ -273,4 +425,9 @@ app.listen(PORT, () => {
   console.log(`   Frontend : http://localhost:${PORT}`);
   console.log(`   API      : http://localhost:${PORT}/api`);
   console.log(`   Database : ${process.env.DB_NAME || 'antijudol'} @ ${process.env.DB_HOST || 'localhost'}\n`);
+
+  // Pastikan tabel proteksi redirect tersedia
+  initRedirectTables()
+    .then(() => console.log('   Redirect protection tables siap.'))
+    .catch((e) => console.error('   Gagal init tabel redirect:', e.message));
 });

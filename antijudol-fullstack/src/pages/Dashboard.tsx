@@ -13,17 +13,24 @@ import {
   RefreshCw,
   LogOut,
   User,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { DeviceList } from "@/components/dashboard/DeviceList";
 import { BlockedContent } from "@/components/dashboard/BlockedContent";
 import { Statistics } from "@/components/dashboard/Statistics";
 import { RealtimeAlerts } from "@/components/dashboard/RealtimeAlerts";
+import { BlockedAds } from "@/components/dashboard/BlockedAds";
+import { SiteBlocking } from "@/components/dashboard/SiteBlocking";
+import { RedirectProtection } from "@/components/dashboard/RedirectProtection";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function Dashboard() {
   const [devices, setDevices] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [adLogs, setAdLogs] = useState([]);
   const [stats, setStats] = useState({
     totalBlocked: 0,
     activeDevices: 0,
@@ -31,6 +38,7 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const { admin, token, logout } = useAuth();
   const navigate = useNavigate();
@@ -41,10 +49,11 @@ export default function Dashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [devicesRes, logsRes, statsRes] = await Promise.all([
+      const [devicesRes, logsRes, statsRes, adsRes] = await Promise.all([
         fetch("/api/devices", { headers: authHeaders }),
         fetch("/api/logs", { headers: authHeaders }),
         fetch("/api/statistics", { headers: authHeaders }),
+        fetch("/api/logs?type=ad&limit=100", { headers: authHeaders }),
       ]);
       if (devicesRes.status === 401) {
         logout();
@@ -54,6 +63,8 @@ export default function Dashboard() {
       if (devicesRes.ok) setDevices(await devicesRes.json());
       if (logsRes.ok) setLogs(await logsRes.json());
       if (statsRes.ok) setStats(await statsRes.json());
+      if (adsRes.ok) setAdLogs(await adsRes.json());
+      setLastUpdated(new Date());
     } catch {
       toast({
         title: "Connection Error",
@@ -67,9 +78,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const extensionConnected = stats.activeDevices > 0;
 
   const handleLogout = () => {
     logout();
@@ -278,6 +291,23 @@ export default function Dashboard() {
                   Campus Gambling Content Monitoring System
                 </p>
               </div>
+              <Badge
+                variant={extensionConnected ? "default" : "secondary"}
+                className={
+                  extensionConnected
+                    ? "ml-2 bg-green-500 hover:bg-green-500"
+                    : "ml-2"
+                }
+              >
+                {extensionConnected ? (
+                  <Wifi className="h-3 w-3 mr-1" />
+                ) : (
+                  <WifiOff className="h-3 w-3 mr-1" />
+                )}
+                {extensionConnected
+                  ? `${stats.activeDevices} Extension Online`
+                  : "Extension Terputus"}
+              </Badge>
             </div>
             <div className="flex gap-2 items-center">
               {admin && (
@@ -289,6 +319,12 @@ export default function Dashboard() {
                   </Badge>
                 </div>
               )}
+              {lastUpdated && (
+                <span className="text-xs text-muted-foreground mr-1 hidden lg:inline">
+                  Update: {lastUpdated.toLocaleTimeString("id-ID")}
+                </span>
+              )}
+              <ThemeToggle />
               <Button variant="outline" size="sm" onClick={fetchData}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
@@ -382,12 +418,24 @@ export default function Dashboard() {
         <Tabs defaultValue="devices" className="space-y-4">
           <TabsList>
             <TabsTrigger value="devices">Devices</TabsTrigger>
+            <TabsTrigger value="blocking">Blokir Situs</TabsTrigger>
+            <TabsTrigger value="redirect">Proteksi Redirect</TabsTrigger>
+            <TabsTrigger value="ads">Iklan Diblokir</TabsTrigger>
             <TabsTrigger value="logs">Blocked Content</TabsTrigger>
             <TabsTrigger value="statistics">Statistics</TabsTrigger>
             <TabsTrigger value="alerts">Real-time Alerts</TabsTrigger>
           </TabsList>
           <TabsContent value="devices">
             <DeviceList devices={devices} loading={loading} />
+          </TabsContent>
+          <TabsContent value="blocking">
+            <SiteBlocking token={token} />
+          </TabsContent>
+          <TabsContent value="redirect">
+            <RedirectProtection token={token} />
+          </TabsContent>
+          <TabsContent value="ads">
+            <BlockedAds ads={adLogs} loading={loading} />
           </TabsContent>
           <TabsContent value="logs">
             <BlockedContent logs={logs} loading={loading} />
@@ -396,7 +444,7 @@ export default function Dashboard() {
             <Statistics logs={logs} />
           </TabsContent>
           <TabsContent value="alerts">
-            <RealtimeAlerts />
+            <RealtimeAlerts logs={logs} />
           </TabsContent>
         </Tabs>
       </main>

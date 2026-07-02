@@ -22,6 +22,19 @@
       "js": ["content.js"],
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["redirect-guard.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["redirect-bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true
     }
   ],
   "declarative_net_request": {
@@ -35,5 +48,11 @@
   },
   "action": {
     "default_popup": "popup.html"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["blocked.html", "alert.mp3"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
