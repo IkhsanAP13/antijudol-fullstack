@@ -188,36 +188,72 @@
     return SEARCH_ENGINES.some((s) => host.includes(s));
   }
 
-  // Jargon judol khas yang muncul di judul/snippet hasil pencarian.
-  // Sengaja spesifik agar hasil edukasi/berita tidak ikut tersembunyi.
+  // Normalisasi teks untuk melawan obfuscation Unicode:
+  //  - buang diakritik (à→a, ö→o, ç→c) via NFKD
+  //  - petakan homoglyph yang tak terurai NFKD (đ→d, ø→o, dll.)
+  //  - buang zero-width / soft hyphen
+  //  - sisakan alfanumerik + spasi
+  function normalizeJudol(s) {
+    if (!s) return '';
+    let t = s.normalize('NFKD').replace(/[̀-ͯ]/g, '');
+    t = t.toLowerCase();
+    const map = {
+      'đ': 'd', 'ø': 'o', 'ł': 'l', 'ß': 'ss', 'æ': 'ae', 'œ': 'oe',
+      'ç': 'c', 'ñ': 'n', 'ı': 'i', 'ð': 'd', 'þ': 'th', 'ĸ': 'k',
+    };
+    t = t.replace(/[đøłßæœçñıðþĸ]/g, (c) => map[c] || c);
+    t = t.replace(/[​-‍﻿­]/g, '');
+    t = t.replace(/[^a-z0-9]+/g, ' ').trim();
+    return t;
+  }
+
+  // Jargon judol (dicocokkan pada teks yang sudah dinormalisasi).
+  // Dibuat spesifik agar hasil edukasi/berita tidak ikut tersembunyi.
   const SEARCH_JUDOL_RE = new RegExp(
     [
-      'slot\\s?gacor', 'situs\\s?slot', 'slot\\s?online', 'link\\s?(slot|alternatif)',
-      'agen\\s?(slot|togel)', 'judi\\s?slot', '\\bgacor\\b', '\\bmaxwin\\b', '\\btogel\\b',
-      'toto\\s?(togel|macau|4d|hk|sgp|singapore)', 'bandar\\s?togel', 'gampang\\s?menang',
-      'anti\\s?rungkad', 'pola\\s?gacor', 'rtp\\s?(slot|live|gacor)',
-      'server\\s?(thailand|kamboja)', '\\bx500\\b', '\\bx1000\\b', 'depo\\s?receh',
-      'pragmatic\\s?play', 'pg\\s?soft', '\\b[a-z]{3,}(4d|88|77)\\b',
+      'slot ?gacor', 'situs ?slot', 'slot ?online', 'link ?(slot|alternatif)',
+      'agen ?(slot|togel)', 'judi ?slot', 'gacor', 'maxwin', 'maxwien', 'maxwi',
+      'togel', 'toto ?(togel|macau|4d|hk|sgp|singapore|888)', 'bandar ?togel',
+      'gampang ?menang', 'rungkad', 'anti ?rungkad', 'pola ?gacor',
+      'rtp ?(slot|live|gacor)', 'server ?(thailand|kamboja|luar)', 'x ?[0-9]{3,4}',
+      'depo ?receh', 'pragmatic ?play', 'pg ?soft', 'scatter', 'sk?[ae]tt?er',
+      'pecah ?selayar', 'wede', 'member ?baru ?100', 'new ?member ?100',
+      'jamin ?(wede|maxwin|jp)', '[a-z]{3,}(4d|88|77)', 'jackpot ?(maxwin|terbesar)',
     ].join('|'),
     'i'
   );
 
-  // Cari container satu entri hasil (Google & Bing punya struktur berbeda)
+  // Cocokkan teks judol dengan tahan-obfuscation (normal + versi huruf-ganda diciutkan)
+  function matchJudolText(raw) {
+    const norm = normalizeJudol(raw);
+    const collapsed = norm.replace(/([a-z])\1+/g, '$1'); // gammpang→gampang, guaaacors→guacors
+    return SEARCH_JUDOL_RE.test(norm) || SEARCH_JUDOL_RE.test(collapsed);
+  }
+
+  // Cari container satu entri hasil — organik & iklan (sponsored), Google & Bing
   function resultContainerOf(node) {
-    return (
-      node.closest(
-        'div.g, div.MjjYud, div.tF2Cxc, div[data-hveid], li.b_algo, div.b_algo, div.result, div.web-result, li'
-      ) || node.parentElement
+    const known = node.closest(
+      'div.g, div.MjjYud, div.tF2Cxc, div[data-hveid], div[data-text-ad],' +
+      ' div.uEierd, li.b_algo, div.b_algo, div.result, div.web-result, li'
     );
+    if (known) return known;
+    // fallback: naik beberapa level untuk menemukan blok hasil yang wajar
+    let el = node;
+    for (let i = 0; i < 5 && el && el.parentElement; i++) {
+      el = el.parentElement;
+      if (el.querySelector('a[href]') && (el.innerText || '').length > 20) return el;
+    }
+    return node.parentElement || node;
   }
 
   function filterSearchResults() {
-    const heads = document.querySelectorAll('a h3, h2 > a, .b_algo h2, h3.title');
+    const heads = document.querySelectorAll(
+      'a h3, h2 > a, .b_algo h2, h3.title, [role="heading"], div[aria-level]'
+    );
     heads.forEach((h) => {
       const container = resultContainerOf(h);
       if (!container || container.getAttribute('data-antijudol-blocked')) return;
-      const text = (container.innerText || '').toLowerCase();
-      if (SEARCH_JUDOL_RE.test(text)) {
+      if (matchJudolText(container.innerText || container.textContent || '')) {
         hideElement(container);
         try {
           chrome.runtime.sendMessage({

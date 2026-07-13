@@ -7,18 +7,35 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const app  = express();
-const pool = new Pool({
-  host:     process.env.DB_HOST     || 'localhost',
-  port:     process.env.DB_PORT     || 5432,
-  database: process.env.DB_NAME     || 'antijudol',
-  user:     process.env.DB_USER     || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-});
+
+// Koneksi database:
+//  - Produksi (Neon/Railway): set DATABASE_URL (connection string) → pakai SSL.
+//  - Lokal: pakai DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD.
+const pool = process.env.DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }, // diperlukan Neon & sebagian besar Postgres cloud
+    })
+  : new Pool({
+      host:     process.env.DB_HOST     || 'localhost',
+      port:     process.env.DB_PORT     || 5432,
+      database: process.env.DB_NAME     || 'antijudol',
+      user:     process.env.DB_USER     || 'postgres',
+      password: process.env.DB_PASSWORD || 'postgres',
+    });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'antijudol-secret-key-ganti-ini';
 const PORT       = process.env.PORT || 3001;
 
-app.use(cors());
+// CORS: izinkan domain frontend. Set CORS_ORIGIN (mis. URL Vercel) untuk membatasi,
+// atau biarkan kosong untuk mengizinkan semua origin (cukup untuk uji coba).
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim())
+      : true,
+  })
+);
 app.use(express.json());
 
 // ─── Serve frontend (hasil npm run build) ────────────────────────
@@ -93,7 +110,7 @@ app.get('/api/devices', verifyToken, async (req, res) => {
         COALESCE(location, '-') AS location,
         extension_version AS "extensionVersion", browser,
         CASE
-          WHEN last_seen > NOW() - INTERVAL '5 minutes' THEN 'online'
+          WHEN last_seen > NOW() - INTERVAL '90 seconds' THEN 'online'
           ELSE 'offline'
         END AS status,
         last_seen AS "lastSeen", blocked_today AS "blockedToday",
@@ -217,7 +234,7 @@ app.get('/api/statistics', verifyToken, async (req, res) => {
   try {
     const [blockedRes, devicesRes, violationsRes] = await Promise.all([
       pool.query(`SELECT COUNT(*) FROM logs WHERE timestamp >= CURRENT_DATE`),
-      pool.query(`SELECT COUNT(*) FROM devices WHERE last_seen > NOW() - INTERVAL '5 minutes'`),
+      pool.query(`SELECT COUNT(*) FROM devices WHERE last_seen > NOW() - INTERVAL '90 seconds'`),
       pool.query(`SELECT COUNT(*) FROM logs WHERE type = 'site' AND timestamp >= CURRENT_DATE`),
     ]);
 

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import { ShieldAlert, Plus, Trash2, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { apiUrl } from '@/lib/api';
 
 interface RedirectLog {
   id: string;
@@ -58,7 +59,7 @@ export function RedirectProtection({ token }: RedirectProtectionProps) {
 
   const fetchConfig = useCallback(async () => {
     try {
-      const res = await fetch('/api/redirect/config');
+      const res = await fetch(apiUrl('/api/redirect/config'));
       if (res.ok) {
         const data = await res.json();
         setEnabled(data.enabled !== false);
@@ -72,7 +73,7 @@ export function RedirectProtection({ token }: RedirectProtectionProps) {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const res = await fetch('/api/redirect/logs?limit=100', {
+      const res = await fetch(apiUrl('/api/redirect/logs?limit=100'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setLogs(await res.json());
@@ -91,7 +92,7 @@ export function RedirectProtection({ token }: RedirectProtectionProps) {
   const saveConfig = async (nextEnabled: boolean, nextSens: string) => {
     setSaving(true);
     try {
-      const res = await fetch('/api/redirect/config', {
+      const res = await fetch(apiUrl('/api/redirect/config'), {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({ enabled: nextEnabled, sensitivity: nextSens }),
@@ -127,7 +128,7 @@ export function RedirectProtection({ token }: RedirectProtectionProps) {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/redirect/whitelist', {
+      const res = await fetch(apiUrl('/api/redirect/whitelist'), {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({ domains: [d], action: 'add' }),
@@ -145,7 +146,7 @@ export function RedirectProtection({ token }: RedirectProtectionProps) {
   const removeDomain = async (d: string) => {
     setSaving(true);
     try {
-      const res = await fetch('/api/redirect/whitelist', {
+      const res = await fetch(apiUrl('/api/redirect/whitelist'), {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({ domains: [d], action: 'remove' }),

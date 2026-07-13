@@ -1,6 +1,12 @@
 // ANTI-JUDOL Background Service Worker
+// ─────────────────────────────────────────────────────────────────────────────
+// GANTI API_ENDPOINT sesuai lokasi backend:
+//   • Lokal (uji di 1 laptop):  'http://localhost:3001/api'
+//   • Online (Railway/produksi): 'https://NAMA-APP.up.railway.app/api'  (WAJIB https)
+// Setelah mengganti, reload extension di chrome://extensions.
+// ─────────────────────────────────────────────────────────────────────────────
 const CONFIG = {
-  API_ENDPOINT: 'http://localhost:3001/api', // Backend lokal (server.js)
+  API_ENDPOINT: 'http://localhost:3001/api',
   HEARTBEAT_INTERVAL: 60000, // 1 menit
   LOG_BATCH_SIZE: 10,
   SYNC_INTERVAL: 300000 // 5 menit
@@ -50,7 +56,7 @@ async function initialize() {
   await updateBlocklist();
 
   // Alarm periodik (idempotent: aman dibuat ulang)
-  chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
+  chrome.alarms.create('heartbeat', { periodInMinutes: 0.5 });
   chrome.alarms.create('syncBlocklist', { periodInMinutes: 1 });
   chrome.alarms.create('flushLogs', { periodInMinutes: 5 });
   chrome.alarms.create('syncRedirectConfig', { periodInMinutes: 1 });

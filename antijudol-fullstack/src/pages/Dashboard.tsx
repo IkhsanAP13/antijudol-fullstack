@@ -26,6 +26,7 @@ import { RedirectProtection } from "@/components/dashboard/RedirectProtection";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { apiUrl } from "@/lib/api";
 
 export default function Dashboard() {
   const [devices, setDevices] = useState([]);
@@ -50,10 +51,10 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const [devicesRes, logsRes, statsRes, adsRes] = await Promise.all([
-        fetch("/api/devices", { headers: authHeaders }),
-        fetch("/api/logs", { headers: authHeaders }),
-        fetch("/api/statistics", { headers: authHeaders }),
-        fetch("/api/logs?type=ad&limit=100", { headers: authHeaders }),
+        fetch(apiUrl("/api/devices"), { headers: authHeaders }),
+        fetch(apiUrl("/api/logs"), { headers: authHeaders }),
+        fetch(apiUrl("/api/statistics"), { headers: authHeaders }),
+        fetch(apiUrl("/api/logs?type=ad&limit=100"), { headers: authHeaders }),
       ]);
       if (devicesRes.status === 401) {
         logout();

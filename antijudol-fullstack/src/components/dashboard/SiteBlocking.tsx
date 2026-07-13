@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Ban, Plus, Trash2, ShieldX, Globe } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { apiUrl } from '@/lib/api';
 
 interface SiteBlockingProps {
   token: string;
@@ -35,7 +36,7 @@ export function SiteBlocking({ token }: SiteBlockingProps) {
 
   const fetchBlocklist = async () => {
     try {
-      const res = await fetch('/api/blocklist');
+      const res = await fetch(apiUrl('/api/blocklist'));
       if (res.ok) setPatterns(await res.json());
     } catch {
       toast({
@@ -61,7 +62,7 @@ export function SiteBlocking({ token }: SiteBlockingProps) {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/blocklist', {
+      const res = await fetch(apiUrl('/api/blocklist'), {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({ domains: [domain], action: 'add' }),
@@ -83,7 +84,7 @@ export function SiteBlocking({ token }: SiteBlockingProps) {
   const removeDomain = async (domain: string) => {
     setSaving(true);
     try {
-      const res = await fetch('/api/blocklist', {
+      const res = await fetch(apiUrl('/api/blocklist'), {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({ domains: [domain], action: 'remove' }),
