@@ -222,6 +222,40 @@ app.post('/api/devices/:id/reset-token', verifyToken, async (req, res) => {
   }
 });
 
+// Admin menambah perangkat secara manual (inventaris / pra-registrasi)
+app.post('/api/devices', verifyToken, async (req, res) => {
+  const { alias, location } = req.body;
+  const deviceId = 'manual_' + crypto.randomUUID();
+  try {
+    await pool.query(
+      `INSERT INTO devices (device_id, device_name, location, status, registered_at)
+       VALUES ($1, $2, $3, 'offline', NOW())`,
+      [
+        deviceId,
+        alias ? String(alias).trim() || null : null,
+        location ? String(location).trim() || null : null,
+      ]
+    );
+    res.json({ success: true, deviceId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+// Admin menghapus perangkat (log terkait ikut terhapus via ON DELETE CASCADE)
+app.delete('/api/devices/:id', verifyToken, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM devices WHERE device_id = $1', [req.params.id]);
+    if (result.rowCount === 0)
+      return res.status(404).json({ message: 'Perangkat tidak ditemukan.' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
 // Admin mengubah alias (nama) & lokasi perangkat
 app.patch('/api/devices/:id', verifyToken, async (req, res) => {
   const { alias, location } = req.body;
