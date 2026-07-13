@@ -350,8 +350,14 @@ async function initRedirectTables() {
 // Buat tabel inti + akun superadmin default (idempoten; tanpa perlu jalankan schema.sql).
 // Dijalankan satu perintah per query agar aman di editor/driver yang tak mendukung multi-statement.
 async function initCoreSchema() {
+  // pgcrypto opsional (butuh izin); gen_random_uuid sudah bawaan PostgreSQL 13+.
+  try {
+    await pool.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+  } catch (e) {
+    console.warn('pgcrypto tidak dibuat (mungkin tak berizin), lanjut:', e.message);
+  }
+
   const statements = [
-    `CREATE EXTENSION IF NOT EXISTS "pgcrypto";`,
     `CREATE TABLE IF NOT EXISTS admins (
        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
        username VARCHAR(50) UNIQUE NOT NULL,
