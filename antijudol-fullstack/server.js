@@ -44,6 +44,21 @@ app.use(express.json());
 // ─── Serve frontend (hasil npm run build) ────────────────────────
 app.use(express.static(path.join(__dirname, 'dist')));
 
+// Inisialisasi database sekali saat modul dimuat (lokal & cold start serverless).
+const dbReady = initDatabase()
+  .then(() => console.log('Database siap.'))
+  .catch((e) => console.error('Gagal init database:', e.message));
+
+// Tahan request /api sampai skema database siap (mencegah balapan saat cold start).
+app.use('/api', async (req, res, next) => {
+  try {
+    await dbReady;
+  } catch (e) {
+    /* biarkan handler yang menangani error koneksi */
+  }
+  next();
+});
+
 // ─── Middleware: cek token ────────────────────────────────────────
 function verifyToken(req, res, next) {
   const auth = req.headers.authorization;
@@ -332,6 +347,100 @@ async function initRedirectTables() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_redirect_logs_ts ON redirect_logs(timestamp DESC);`);
 }
 
+// Buat tabel inti + akun superadmin default (idempoten; tanpa perlu jalankan schema.sql).
+// Dijalankan satu perintah per query agar aman di editor/driver yang tak mendukung multi-statement.
+async function initCoreSchema() {
+  const statements = [
+    `CREATE EXTENSION IF NOT EXISTS "pgcrypto";`,
+    `CREATE TABLE IF NOT EXISTS admins (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       username VARCHAR(50) UNIQUE NOT NULL,
+       password_hash VARCHAR(255) NOT NULL,
+       name VARCHAR(100) NOT NULL,
+       email VARCHAR(100) UNIQUE,
+       role VARCHAR(20) NOT NULL DEFAULT 'admin',
+       is_active BOOLEAN NOT NULL DEFAULT TRUE,
+       last_login TIMESTAMPTZ,
+       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     );`,
+    `CREATE TABLE IF NOT EXISTS devices (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       device_id VARCHAR(255) UNIQUE NOT NULL,
+       device_name VARCHAR(255),
+       location VARCHAR(255),
+       extension_version VARCHAR(50),
+       browser VARCHAR(50),
+       ip_address INET,
+       status VARCHAR(20) NOT NULL DEFAULT 'online',
+       last_seen TIMESTAMPTZ,
+       blocked_today INTEGER NOT NULL DEFAULT 0,
+       registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     );`,
+    `CREATE TABLE IF NOT EXISTS logs (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       device_id VARCHAR(255) NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
+       timestamp TIMESTAMPTZ NOT NULL,
+       type VARCHAR(20) NOT NULL,
+       url TEXT NOT NULL,
+       selector VARCHAR(255),
+       reason VARCHAR(255),
+       tab_id INTEGER,
+       category VARCHAR(50) DEFAULT 'gambling',
+       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     );`,
+    `CREATE TABLE IF NOT EXISTS blocklist (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       pattern VARCHAR(255) UNIQUE NOT NULL,
+       category VARCHAR(50) DEFAULT 'gambling',
+       is_active BOOLEAN NOT NULL DEFAULT TRUE,
+       added_by UUID REFERENCES admins(id) ON DELETE SET NULL,
+       added_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     );`,
+    `CREATE TABLE IF NOT EXISTS admin_sessions (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       admin_id UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+       token_jti VARCHAR(255) UNIQUE NOT NULL,
+       expires_at TIMESTAMPTZ NOT NULL,
+       revoked BOOLEAN NOT NULL DEFAULT FALSE,
+       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     );`,
+    `CREATE INDEX IF NOT EXISTS idx_logs_device_id ON logs(device_id);`,
+    `CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC);`,
+    `CREATE INDEX IF NOT EXISTS idx_logs_type ON logs(type);`,
+    `CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);`,
+    `CREATE INDEX IF NOT EXISTS idx_devices_last_seen ON devices(last_seen DESC);`,
+    `CREATE INDEX IF NOT EXISTS idx_sessions_token ON admin_sessions(token_jti);`,
+    `CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $func$
+       BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+     $func$ LANGUAGE plpgsql;`,
+    `DROP TRIGGER IF EXISTS trg_admins_updated_at ON admins;`,
+    `CREATE TRIGGER trg_admins_updated_at BEFORE UPDATE ON admins
+       FOR EACH ROW EXECUTE FUNCTION set_updated_at();`,
+    `INSERT INTO blocklist (pattern, category) VALUES
+       ('*://bet*.com/*','gambling'), ('*://casino*.com/*','gambling'),
+       ('*://poker*.com/*','gambling'), ('*://judi*.com/*','gambling'),
+       ('*://taruhan*.com/*','gambling'), ('*://togel*.com/*','gambling'),
+       ('*://slot*.com/*','gambling'), ('*://pragmatic*.com/*','gambling'),
+       ('*://maxwin*.com/*','gambling'), ('*://gacor*.com/*','gambling')
+       ON CONFLICT (pattern) DO NOTHING;`,
+    `INSERT INTO admins (username, password_hash, name, email, role)
+       VALUES ('superadmin',
+               '$2b$12$zVWnKs7Kq3UsTXOcCQVbweFfGYqsoZ41bZbC7q3Rkvlw8i5xdlI9S',
+               'Super Administrator', 'admin@kampus.ac.id', 'superadmin')
+       ON CONFLICT (username) DO NOTHING;`,
+  ];
+  for (const sql of statements) {
+    await pool.query(sql);
+  }
+}
+
+// Inisialisasi seluruh database (inti + proteksi redirect)
+async function initDatabase() {
+  await initCoreSchema();
+  await initRedirectTables();
+}
+
 // GET config (publik — dipakai extension)
 app.get('/api/redirect/config', async (req, res) => {
   try {
@@ -446,10 +555,7 @@ app.get('*', (req, res) => {
   });
 });
 
-// Pastikan tabel proteksi redirect tersedia (jalan di lokal & saat cold start serverless)
-initRedirectTables()
-  .then(() => console.log('Redirect protection tables siap.'))
-  .catch((e) => console.error('Gagal init tabel redirect:', e.message));
+// (Inisialisasi database sudah dijalankan di atas via dbReady.)
 
 // Hanya panggil listen saat dijalankan langsung (node server.js), bukan di serverless
 if (require.main === module) {
