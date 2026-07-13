@@ -427,7 +427,7 @@ export default function Dashboard() {
             <TabsTrigger value="alerts">Real-time Alerts</TabsTrigger>
           </TabsList>
           <TabsContent value="devices">
-            <DeviceList devices={devices} loading={loading} />
+            <DeviceList devices={devices} loading={loading} token={token} onUpdated={fetchData} />
           </TabsContent>
           <TabsContent value="blocking">
             <SiteBlocking token={token} />

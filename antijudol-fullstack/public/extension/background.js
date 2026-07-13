@@ -27,15 +27,26 @@ function scheduleFlush() {
 }
 
 // ─── Inisialisasi state (dipanggil di banyak titik karena SW MV3 mudah mati) ──
+// Device ID unik & stabil:
+//  1) storage.sync  → BERTAHAN saat ekstensi di-install ulang (bila profil Chrome sama)
+//  2) storage.local → migrasi ID lama agar tidak jadi perangkat baru
+//  3) crypto.randomUUID() → generate baru bila belum ada
 async function ensureDeviceId() {
   if (deviceId) return deviceId;
-  const stored = await chrome.storage.local.get(["deviceId"]);
-  if (stored.deviceId) {
-    deviceId = stored.deviceId;
-  } else {
-    deviceId = generateDeviceId();
-    await chrome.storage.local.set({ deviceId });
+  try {
+    const s = await chrome.storage.sync.get(["deviceId"]);
+    if (s.deviceId) deviceId = s.deviceId;
+  } catch (e) {
+    /* storage.sync bisa dinonaktifkan di lingkungan tertentu */
   }
+  if (!deviceId) {
+    const l = await chrome.storage.local.get(["deviceId"]);
+    deviceId = l.deviceId || generateDeviceId();
+    try {
+      await chrome.storage.sync.set({ deviceId });
+    } catch (e) {}
+  }
+  await chrome.storage.local.set({ deviceId });
   return deviceId;
 }
 
@@ -78,8 +89,11 @@ chrome.runtime.onStartup.addListener(() => {
   initialize();
 });
 
-// Generate unique device ID
+// Generate unique device ID (UUID v4 bila tersedia)
 function generateDeviceId() {
+  if (self.crypto && typeof crypto.randomUUID === "function") {
+    return "device_" + crypto.randomUUID();
+  }
   return "device_" + Math.random().toString(36).substr(2, 9) + "_" + Date.now();
 }
 
@@ -87,10 +101,13 @@ function generateDeviceId() {
 async function registerDevice() {
   try {
     await ensureDeviceId();
+    const info = await getDeviceInfo();
     const deviceInfo = {
       deviceId: deviceId,
       extensionVersion: chrome.runtime.getManifest().version,
       browser: getBrowserInfo(),
+      os: info.os,
+      osVersion: info.osVersion,
       registeredAt: new Date().toISOString(),
     };
 
@@ -115,6 +132,24 @@ function getBrowserInfo() {
   if (ua.includes("Chrome")) return "Chrome";
   if (ua.includes("Firefox")) return "Firefox";
   return "Unknown";
+}
+
+// Ambil OS & versinya (data yang diizinkan untuk ekstensi)
+async function getDeviceInfo() {
+  const OS_LABEL = { win: "Windows", mac: "macOS", linux: "Linux", cros: "ChromeOS", android: "Android", openbsd: "OpenBSD" };
+  let os = "Unknown";
+  let osVersion = "";
+  try {
+    const platform = await chrome.runtime.getPlatformInfo(); // { os, arch }
+    os = OS_LABEL[platform.os] || platform.os || "Unknown";
+  } catch (e) {}
+  try {
+    if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+      const hi = await navigator.userAgentData.getHighEntropyValues(["platformVersion"]);
+      osVersion = hi.platformVersion || "";
+    }
+  } catch (e) {}
+  return { os, osVersion };
 }
 
 // Update blocklist from server

@@ -22,7 +22,7 @@
           globalWhitelist: data.globalWhitelist || [],
           localWhitelist: data.localWhitelist || [],
         },
-        location.origin || '*'
+        '*' // internal (page ↔ script kita); aman di file://, sandbox, & opaque origin
       );
     } catch (e) {
       /* abaikan */
@@ -223,7 +223,7 @@
   function allowOnce(entry) {
     // Izinkan retry di guard (jika halaman mencoba lagi) ...
     try {
-      window.postMessage({ source: 'ANTIJUDOL_RG_ALLOW_ONCE', url: entry.url }, location.origin || '*');
+      window.postMessage({ source: 'ANTIJUDOL_RG_ALLOW_ONCE', url: entry.url }, '*');
     } catch (e) {}
     // ... dan buka tujuannya lewat background (navigasi asli sudah dibatalkan)
     try {

@@ -124,8 +124,10 @@ app.get('/api/devices', verifyToken, async (req, res) => {
     const result = await pool.query(`
       SELECT
         id, device_id AS "deviceId",
+        device_name AS "alias",
         COALESCE(device_name, device_id) AS "deviceName",
-        COALESCE(location, '-') AS location,
+        location,
+        os, os_version AS "osVersion",
         extension_version AS "extensionVersion", browser,
         CASE
           WHEN last_seen > NOW() - INTERVAL '90 seconds' THEN 'online'
@@ -134,7 +136,7 @@ app.get('/api/devices', verifyToken, async (req, res) => {
         last_seen AS "lastSeen", blocked_today AS "blockedToday",
         registered_at AS "registeredAt"
       FROM devices
-      ORDER BY last_seen DESC NULLS LAST
+      ORDER BY location NULLS LAST, device_name NULLS LAST, last_seen DESC NULLS LAST
     `);
     res.json(result.rows);
   } catch (err) {
@@ -144,20 +146,39 @@ app.get('/api/devices', verifyToken, async (req, res) => {
 });
 
 app.post('/api/devices/register', async (req, res) => {
-  const { deviceId, extensionVersion, browser, registeredAt } = req.body;
+  const { deviceId, extensionVersion, browser, os, osVersion, registeredAt } = req.body;
   if (!deviceId) return res.status(400).json({ message: 'deviceId wajib diisi.' });
 
   try {
     await pool.query(`
-      INSERT INTO devices (device_id, extension_version, browser, last_seen, registered_at)
-      VALUES ($1, $2, $3, NOW(), $4)
+      INSERT INTO devices (device_id, extension_version, browser, os, os_version, last_seen, registered_at)
+      VALUES ($1, $2, $3, $4, $5, NOW(), $6)
       ON CONFLICT (device_id) DO UPDATE
         SET extension_version = EXCLUDED.extension_version,
             browser           = EXCLUDED.browser,
+            os                = EXCLUDED.os,
+            os_version        = EXCLUDED.os_version,
             last_seen         = NOW()
-    `, [deviceId, extensionVersion, browser, registeredAt || new Date()]);
+    `, [deviceId, extensionVersion, browser, os || null, osVersion || null, registeredAt || new Date()]);
 
     res.json({ success: true, deviceId, message: 'Device registered successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+// Admin mengubah alias (nama) & lokasi perangkat
+app.patch('/api/devices/:id', verifyToken, async (req, res) => {
+  const { alias, location } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE devices SET device_name = $1, location = $2 WHERE device_id = $3`,
+      [alias ? String(alias).trim() || null : null, location ? String(location).trim() || null : null, req.params.id]
+    );
+    if (result.rowCount === 0)
+      return res.status(404).json({ message: 'Perangkat tidak ditemukan.' });
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Internal server error.' });
@@ -383,6 +404,10 @@ async function initCoreSchema() {
        blocked_today INTEGER NOT NULL DEFAULT 0,
        registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
      );`,
+    // Kolom identifikasi tambahan (aman bila sudah ada)
+    `ALTER TABLE devices ADD COLUMN IF NOT EXISTS os VARCHAR(30);`,
+    `ALTER TABLE devices ADD COLUMN IF NOT EXISTS os_version VARCHAR(50);`,
+    `CREATE INDEX IF NOT EXISTS idx_devices_location ON devices(location);`,
     `CREATE TABLE IF NOT EXISTS logs (
        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
        device_id VARCHAR(255) NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,

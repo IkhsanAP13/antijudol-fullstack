@@ -155,7 +155,7 @@
           from: location.href,
           ts: Date.now(),
         },
-        location.origin || '*'
+        '*' // internal (page ↔ script kita); aman di file://, sandbox, & opaque origin
       );
     } catch (e) {
       /* abaikan */
