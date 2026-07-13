@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kebijakan Privasi — ANTI-JUDOL</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.65;
+      color: #1a1a2e;
+      background: #f6f5fb;
+    }
+    .wrap { max-width: 820px; margin: 0 auto; padding: 40px 20px 80px; }
+    header { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+    .logo {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: linear-gradient(135deg, #6d4fe8, #7c5cf6);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 22px;
+    }
+    h1 { font-size: 26px; margin: 0; }
+    .sub { color: #6b6b80; font-size: 14px; margin: 2px 0 24px; }
+    h2 { font-size: 18px; margin: 28px 0 8px; color: #4c1d95; }
+    p, li { font-size: 15px; }
+    ul { padding-left: 22px; }
+    code { background: #ece9fb; padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+    .card {
+      background: #fff; border: 1px solid #e6e3f5; border-radius: 14px;
+      padding: 8px 24px 24px; margin-top: 16px;
+    }
+    footer { margin-top: 40px; font-size: 13px; color: #8a8a9e; text-align: center; }
+    a { color: #6d4fe8; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #14121f; color: #e8e6f0; }
+      .card { background: #1d1a2e; border-color: #2c2842; }
+      h2 { color: #c4b5fd; }
+      .sub, footer { color: #9a95b3; }
+      code { background: #2c2842; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">🛡️</div>
+      <div>
+        <h1>Kebijakan Privasi — ANTI-JUDOL</h1>
+      </div>
+    </header>
+    <div class="sub">Ekstensi "ANTI-JUDOL — Campus Gambling Blocker" · Terakhir diperbarui: 14 Juli 2026</div>
+
+    <div class="card">
+      <h2>1. Ringkasan</h2>
+      <p>
+        ANTI-JUDOL adalah ekstensi peramban untuk memblokir situs dan iklan perjudian online
+        serta memantau aktivitas pemblokiran dalam lingkungan kampus. Halaman ini menjelaskan
+        data apa yang dikumpulkan, tujuannya, dan bagaimana data tersebut ditangani.
+      </p>
+
+      <h2>2. Data yang Dikumpulkan</h2>
+      <p>Untuk menjalankan fungsi pemantauan, ekstensi mengumpulkan data berikut:</p>
+      <ul>
+        <li><b>Identitas perangkat</b>: ID acak yang dibuat oleh ekstensi (mis. <code>device_xxxxx</code>),
+          jenis peramban, dan versi ekstensi. Tidak mencakup nama, email, atau identitas pribadi.</li>
+        <li><b>Aktivitas pemblokiran</b>: URL situs judi yang diblokir, informasi iklan judi yang
+          disembunyikan (domain halaman tempat iklan muncul), serta upaya <i>redirect</i> yang dicegah
+          (URL tujuan dan URL asal), beserta waktu kejadian.</li>
+        <li><b>Statistik ringkas</b>: jumlah situs/iklan yang diblokir, dan sinyal <i>heartbeat</i>
+          berkala untuk menandai perangkat aktif.</li>
+      </ul>
+      <p>
+        Ekstensi <b>tidak</b> mengumpulkan seluruh riwayat penjelajahan Anda — hanya kejadian
+        yang berkaitan dengan pemblokiran konten judi. Halaman biasa (mesin pencari, situs
+        edukasi/pemerintah/berita, dan platform tepercaya) tidak dipantau maupun dikirim.
+      </p>
+
+      <h2>3. Tujuan Penggunaan Data</h2>
+      <ul>
+        <li>Memblokir dan mengalihkan situs perjudian online.</li>
+        <li>Menyembunyikan iklan perjudian dan mencegah <i>redirect</i> paksa.</li>
+        <li>Menampilkan statistik pemblokiran di dashboard admin untuk keperluan pemantauan kampus.</li>
+      </ul>
+
+      <h2>4. Penyimpanan &amp; Pengiriman Data</h2>
+      <p>
+        Data dikirim melalui koneksi terenkripsi (HTTPS) ke server milik pengelola sistem di
+        <code>antijudol-fullstack.vercel.app</code> dan disimpan pada basis data PostgreSQL yang
+        hanya dapat diakses oleh administrator melalui login. Sebagian preferensi (mis. whitelist
+        lokal) disimpan secara lokal di peramban Anda melalui penyimpanan ekstensi.
+      </p>
+
+      <h2>5. Berbagi dengan Pihak Ketiga</h2>
+      <p>
+        Kami <b>tidak menjual</b> dan <b>tidak membagikan</b> data Anda kepada pihak ketiga untuk
+        tujuan periklanan atau komersial. Data hanya digunakan untuk fungsi inti ekstensi ini.
+      </p>
+
+      <h2>6. Retensi Data</h2>
+      <p>
+        Log pemblokiran disimpan selama diperlukan untuk keperluan pemantauan dan dapat dihapus
+        oleh administrator kapan saja. Menghapus/menonaktifkan ekstensi menghentikan pengumpulan
+        data baru dari perangkat Anda.
+      </p>
+
+      <h2>7. Keamanan</h2>
+      <p>
+        Transmisi data memakai HTTPS. Akses ke data pemantauan dilindungi autentikasi admin
+        (token). Meski demikian, tidak ada sistem yang sepenuhnya bebas risiko.
+      </p>
+
+      <h2>8. Izin (Permissions) yang Digunakan</h2>
+      <ul>
+        <li><code>tabs</code> — mengalihkan tab ke halaman blokir &amp; fitur "Izinkan Sekali".</li>
+        <li><code>webRequest</code> — mendeteksi navigasi ke situs perjudian (observasi).</li>
+        <li><code>declarativeNetRequest</code> — memblokir &amp; mengalihkan situs perjudian.</li>
+        <li><code>storage</code> — menyimpan ID perangkat, statistik, dan whitelist lokal.</li>
+        <li><code>alarms</code> — <i>heartbeat</i> dan sinkronisasi berkala.</li>
+        <li><code>host_permissions</code> (semua situs) — karena situs/iklan judi dapat muncul di
+          domain mana saja.</li>
+      </ul>
+
+      <h2>9. Hak Anda</h2>
+      <p>
+        Anda dapat berhenti berbagi data kapan saja dengan menonaktifkan atau menghapus ekstensi.
+        Untuk permintaan penghapusan data pemantauan, hubungi kontak di bawah.
+      </p>
+
+      <h2>10. Kontak</h2>
+      <p>
+        Pertanyaan terkait privasi dapat dikirim ke: <a href="mailto:ikhsan13yogi@gmail.com">ikhsan13yogi@gmail.com</a>.
+      </p>
+    </div>
+
+    <footer>
+      🛡️ ANTI-JUDOL — Sistem Monitoring &amp; Pemblokiran Konten Judi Kampus
+    </footer>
+  </div>
+</body>
+</html>

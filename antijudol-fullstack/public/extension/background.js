@@ -6,7 +6,7 @@
 // Setelah mengganti, reload extension di chrome://extensions.
 // ─────────────────────────────────────────────────────────────────────────────
 const CONFIG = {
-  API_ENDPOINT: "https://antijudol-fullstack.vercel.app/api/blocklist",
+  API_ENDPOINT: "https://antijudol-fullstack.vercel.app/api",
   HEARTBEAT_INTERVAL: 60000, // 1 menit
   LOG_BATCH_SIZE: 10,
   SYNC_INTERVAL: 300000, // 5 menit

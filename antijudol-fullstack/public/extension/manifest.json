@@ -3,6 +3,11 @@
   "name": "ANTI-JUDOL - Campus Gambling Blocker",
   "version": "1.0.0",
   "description": "Automatically blocks gambling sites and ads, monitors activity for campus administrators",
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
   "permissions": [
     "tabs",
     "webRequest",
@@ -47,7 +52,12 @@
     ]
   },
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
   },
   "web_accessible_resources": [
     {
