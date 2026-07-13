@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  Monitor, CheckCircle, XCircle, Pencil, Check, X, KeyRound, Trash2, Plus, Search,
+  Monitor, CheckCircle, XCircle, Pencil, Check, X, KeyRound, Trash2, Plus, Search, Download,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiUrl } from '@/lib/api';
@@ -157,6 +157,37 @@ export function DeviceList({ devices, loading, token, onUpdated }: DeviceListPro
     );
   });
 
+  // Statistik per lokasi (dari semua perangkat)
+  const locStats = (() => {
+    const map: Record<string, { total: number; online: number; blocked: number }> = {};
+    devices.forEach((d) => {
+      const key = d.location || 'Tanpa lokasi';
+      if (!map[key]) map[key] = { total: 0, online: 0, blocked: 0 };
+      map[key].total++;
+      if (d.status === 'online') map[key].online++;
+      map[key].blocked += Number(d.blockedToday) || 0;
+    });
+    return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
+  })();
+
+  // Ekspor daftar (sesuai filter) ke CSV
+  const exportCsv = () => {
+    const headers = ['Alias', 'Lokasi', 'Status', 'OS', 'OS Version', 'Versi Ekstensi', 'Blocked Today', 'Terakhir Aktif', 'Device ID'];
+    const rows = filtered.map((d) => [
+      d.alias || d.deviceName, d.location || '', d.status, d.os || '', d.osVersion || '',
+      d.extensionVersion || '', d.blockedToday, d.lastSeen || '', d.deviceId,
+    ]);
+    const esc = (v: unknown) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [headers, ...rows].map((r) => r.map(esc).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `devices-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <Card>
@@ -205,6 +236,10 @@ export function DeviceList({ devices, loading, token, onUpdated }: DeviceListPro
                 <SelectItem value="offline">Offline</SelectItem>
               </SelectContent>
             </Select>
+            <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+              <Download className="h-4 w-4 mr-1" />
+              CSV
+            </Button>
             <Button size="sm" onClick={() => setAdding((v) => !v)}>
               <Plus className="h-4 w-4 mr-1" />
               Tambah
@@ -213,6 +248,25 @@ export function DeviceList({ devices, loading, token, onUpdated }: DeviceListPro
         </div>
       </CardHeader>
       <CardContent>
+        {devices.length > 0 && locStats.length > 0 && (
+          <div className="mb-4 rounded-lg border p-3">
+            <div className="text-sm font-medium mb-2">Ringkasan per Lokasi</div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {locStats.map(([loc, s]) => (
+                <div
+                  key={loc}
+                  className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm"
+                >
+                  <span className="truncate font-medium mr-2">{loc}</span>
+                  <span className="text-muted-foreground whitespace-nowrap">
+                    <span className="text-green-500">{s.online}</span>/{s.total} online · {s.blocked} blocked
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {adding && (
           <div className="flex flex-wrap items-end gap-2 mb-4 p-3 rounded-lg border bg-muted/40">
             <div className="flex-1 min-w-[160px]">
