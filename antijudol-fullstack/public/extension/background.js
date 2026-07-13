@@ -13,9 +13,31 @@ const CONFIG = {
 };
 
 let deviceId = null;
+let deviceToken = null; // token rahasia per perangkat (anti-spoof laporan)
 let logQueue = [];
 let blocklist = [];
 let flushTimer = null;
+
+// Muat token perangkat dari storage (sync lebih dulu agar tahan reinstall)
+async function ensureDeviceToken() {
+  if (deviceToken) return deviceToken;
+  try {
+    const s = await chrome.storage.sync.get(["deviceToken"]);
+    if (s.deviceToken) deviceToken = s.deviceToken;
+  } catch (e) {}
+  if (!deviceToken) {
+    const l = await chrome.storage.local.get(["deviceToken"]);
+    if (l.deviceToken) deviceToken = l.deviceToken;
+  }
+  return deviceToken;
+}
+
+// Header untuk request laporan ke backend (sertakan token perangkat bila ada)
+function reportHeaders() {
+  const h = { "Content-Type": "application/json" };
+  if (deviceToken) h["Authorization"] = "Bearer " + deviceToken;
+  return h;
+}
 
 // Jadwalkan autosave cepat ke database (debounce 2 detik setelah blokir terakhir)
 function scheduleFlush() {
@@ -62,6 +84,7 @@ async function ensureStats() {
 // Setup penuh: dipanggil saat install & startup
 async function initialize() {
   await ensureDeviceId();
+  await ensureDeviceToken();
   await ensureStats();
   await registerDevice();
   await updateBlocklist();
@@ -118,6 +141,15 @@ async function registerDevice() {
     });
 
     if (response.ok) {
+      const data = await response.json().catch(() => ({}));
+      // Simpan token perangkat (hanya diterbitkan sekali saat enroll pertama)
+      if (data && data.deviceToken) {
+        deviceToken = data.deviceToken;
+        try {
+          await chrome.storage.sync.set({ deviceToken });
+        } catch (e) {}
+        await chrome.storage.local.set({ deviceToken });
+      }
       console.log("Device registered successfully");
     }
   } catch (error) {
@@ -304,9 +336,10 @@ async function addLocalWhitelist(domain) {
 async function postRedirectLog(entry) {
   try {
     await ensureDeviceId();
+    await ensureDeviceToken();
     await fetch(`${CONFIG.API_ENDPOINT}/redirect/logs`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: reportHeaders(),
       body: JSON.stringify({
         deviceId,
         target: entry.target || "",
@@ -400,9 +433,10 @@ async function flushLogs() {
   logQueue = [];
 
   try {
+    await ensureDeviceToken();
     await fetch(`${CONFIG.API_ENDPOINT}/logs`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: reportHeaders(),
       body: JSON.stringify({ logs: logsToSend }),
     });
     console.log("Logs sent:", logsToSend.length);
@@ -416,10 +450,11 @@ async function flushLogs() {
 async function sendHeartbeat() {
   try {
     await ensureDeviceId();
+    await ensureDeviceToken();
     const { stats } = await chrome.storage.local.get(["stats"]);
     await fetch(`${CONFIG.API_ENDPOINT}/heartbeat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: reportHeaders(),
       body: JSON.stringify({
         deviceId,
         timestamp: new Date().toISOString(),

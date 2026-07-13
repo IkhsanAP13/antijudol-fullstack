@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Monitor, CheckCircle, XCircle, Pencil, Check, X } from 'lucide-react';
+import { Monitor, CheckCircle, XCircle, Pencil, Check, X, KeyRound } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiUrl } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -44,6 +44,24 @@ export function DeviceList({ devices, loading, token, onUpdated }: DeviceListPro
   };
 
   const cancel = () => setEditingId(null);
+
+  const resetToken = async (deviceId: string) => {
+    if (!window.confirm('Reset token perangkat ini? Perangkat akan mendaftar ulang token saat aktif berikutnya.')) return;
+    try {
+      const res = await fetch(apiUrl(`/api/devices/${encodeURIComponent(deviceId)}/reset-token`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        toast({ title: 'Token direset', description: 'Perangkat dapat mendaftar ulang token.' });
+        onUpdated();
+      } else {
+        toast({ title: 'Gagal', description: 'Tidak bisa mereset token.', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Koneksi ke server gagal.', variant: 'destructive' });
+    }
+  };
 
   const save = async (deviceId: string) => {
     setSaving(true);
@@ -190,9 +208,14 @@ export function DeviceList({ devices, loading, token, onUpdated }: DeviceListPro
                           </Button>
                         </div>
                       ) : (
-                        <Button size="icon" variant="ghost" onClick={() => startEdit(device)} aria-label="Edit">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1 justify-end">
+                          <Button size="icon" variant="ghost" onClick={() => startEdit(device)} aria-label="Edit nama/lokasi">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" onClick={() => resetToken(device.deviceId)} aria-label="Reset token" title="Reset token perangkat">
+                            <KeyRound className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>

@@ -3,8 +3,12 @@ const cors     = require('cors');
 const bcrypt   = require('bcryptjs'); // murni JS: aman untuk serverless & memverifikasi hash bcrypt lama
 const jwt      = require('jsonwebtoken');
 const path     = require('path');
+const crypto   = require('crypto');
 const { Pool } = require('pg');
 require('dotenv').config();
+
+// Hash token perangkat (disimpan hanya hash-nya, bukan token asli)
+const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 
 const app  = express();
 
@@ -70,6 +74,28 @@ function verifyToken(req, res, next) {
     next();
   } catch {
     return res.status(401).json({ message: 'Token tidak valid atau sudah expired.' });
+  }
+}
+
+// ─── Middleware: verifikasi token PERANGKAT (anti-spoof laporan ekstensi) ──────
+// Jika perangkat sudah punya token_hash → wajib menyertakan Bearer token yang cocok.
+// Jika belum (perangkat lama / belum enroll) → diizinkan (grace) agar tidak putus.
+async function verifyDevice(req, res, next) {
+  const b = req.body || {};
+  const deviceId =
+    b.deviceId || (Array.isArray(b.logs) && b.logs[0] && b.logs[0].deviceId) || null;
+  if (!deviceId) return res.status(400).json({ message: 'deviceId wajib diisi.' });
+  try {
+    const r = await pool.query('SELECT token_hash FROM devices WHERE device_id = $1', [deviceId]);
+    const stored = r.rows[0] && r.rows[0].token_hash;
+    if (!stored) return next(); // belum enroll token → izinkan
+    const auth = req.headers.authorization || '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    if (token && sha256(token) === stored) return next();
+    return res.status(401).json({ message: 'Token perangkat tidak valid.' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Internal server error.' });
   }
 }
 
@@ -161,7 +187,35 @@ app.post('/api/devices/register', async (req, res) => {
             last_seen         = NOW()
     `, [deviceId, extensionVersion, browser, os || null, osVersion || null, registeredAt || new Date()]);
 
-    res.json({ success: true, deviceId, message: 'Device registered successfully' });
+    // Terbitkan token perangkat HANYA saat pertama kali enroll (token_hash masih kosong).
+    // Ini mencegah pihak lain "mencuri" slot token perangkat yang sudah terdaftar.
+    let deviceToken;
+    const cur = await pool.query('SELECT token_hash FROM devices WHERE device_id = $1', [deviceId]);
+    if (!cur.rows[0] || !cur.rows[0].token_hash) {
+      deviceToken = crypto.randomBytes(24).toString('hex');
+      await pool.query('UPDATE devices SET token_hash = $1 WHERE device_id = $2', [
+        sha256(deviceToken),
+        deviceId,
+      ]);
+    }
+
+    res.json({ success: true, deviceId, deviceToken, message: 'Device registered successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+// Admin mereset token perangkat (izinkan enroll ulang bila token hilang / re-provisioning)
+app.post('/api/devices/:id/reset-token', verifyToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'UPDATE devices SET token_hash = NULL WHERE device_id = $1',
+      [req.params.id]
+    );
+    if (result.rowCount === 0)
+      return res.status(404).json({ message: 'Perangkat tidak ditemukan.' });
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Internal server error.' });
@@ -189,7 +243,7 @@ app.patch('/api/devices/:id', verifyToken, async (req, res) => {
 // HEARTBEAT
 // ═══════════════════════════════════════════════════════════════════
 
-app.post('/api/heartbeat', async (req, res) => {
+app.post('/api/heartbeat', verifyDevice, async (req, res) => {
   const { deviceId, stats } = req.body;
   if (!deviceId) return res.status(400).json({ message: 'deviceId wajib diisi.' });
 
@@ -246,7 +300,7 @@ app.get('/api/logs', verifyToken, async (req, res) => {
   }
 });
 
-app.post('/api/logs', async (req, res) => {
+app.post('/api/logs', verifyDevice, async (req, res) => {
   const { logs } = req.body;
   if (!Array.isArray(logs) || logs.length === 0)
     return res.status(400).json({ message: 'logs harus array dan tidak boleh kosong.' });
@@ -407,6 +461,7 @@ async function initCoreSchema() {
     // Kolom identifikasi tambahan (aman bila sudah ada)
     `ALTER TABLE devices ADD COLUMN IF NOT EXISTS os VARCHAR(30);`,
     `ALTER TABLE devices ADD COLUMN IF NOT EXISTS os_version VARCHAR(50);`,
+    `ALTER TABLE devices ADD COLUMN IF NOT EXISTS token_hash VARCHAR(64);`,
     `CREATE INDEX IF NOT EXISTS idx_devices_location ON devices(location);`,
     `CREATE TABLE IF NOT EXISTS logs (
        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -534,7 +589,7 @@ app.post('/api/redirect/whitelist', verifyToken, async (req, res) => {
 });
 
 // POST log redirect diblokir (publik — dari extension)
-app.post('/api/redirect/logs', async (req, res) => {
+app.post('/api/redirect/logs', verifyDevice, async (req, res) => {
   const { deviceId, target, from, reason, method, timestamp } = req.body;
   try {
     await pool.query(
