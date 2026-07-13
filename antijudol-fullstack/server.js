@@ -1,6 +1,6 @@
 const express  = require('express');
 const cors     = require('cors');
-const bcrypt   = require('bcrypt');
+const bcrypt   = require('bcryptjs'); // murni JS: aman untuk serverless & memverifikasi hash bcrypt lama
 const jwt      = require('jsonwebtoken');
 const path     = require('path');
 const { Pool } = require('pg');
@@ -11,10 +11,13 @@ const app  = express();
 // Koneksi database:
 //  - Produksi (Neon/Railway): set DATABASE_URL (connection string) → pakai SSL.
 //  - Lokal: pakai DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD.
-const pool = process.env.DATABASE_URL
+// DATABASE_URL (Neon/Railway) atau POSTGRES_URL (Vercel Postgres) → pakai SSL.
+const CONNECTION_STRING = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+const pool = CONNECTION_STRING
   ? new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false }, // diperlukan Neon & sebagian besar Postgres cloud
+      connectionString: CONNECTION_STRING,
+      ssl: { rejectUnauthorized: false }, // diperlukan Neon/Vercel Postgres & Postgres cloud lainnya
+      max: 3, // batasi koneksi (ramah untuk lingkungan serverless)
     })
   : new Pool({
       host:     process.env.DB_HOST     || 'localhost',
@@ -431,20 +434,31 @@ app.get('/api/redirect/logs', verifyToken, async (req, res) => {
   }
 });
 
-// ─── Semua route lain → kirim index.html (React Router) ──────────
+// ─── Endpoint /api yang tidak dikenal → 404 JSON (bukan HTML) ─────
+app.use('/api', (req, res) => {
+  res.status(404).json({ message: 'Endpoint tidak ditemukan.' });
+});
+
+// ─── Route lain → index.html (hanya relevan saat dijalankan lokal via Express) ──
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'), (err) => {
+    if (err) res.status(404).end();
+  });
 });
 
-// ─── Start ────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n✅ ANTI-JUDOL berjalan di http://localhost:${PORT}`);
-  console.log(`   Frontend : http://localhost:${PORT}`);
-  console.log(`   API      : http://localhost:${PORT}/api`);
-  console.log(`   Database : ${process.env.DB_NAME || 'antijudol'} @ ${process.env.DB_HOST || 'localhost'}\n`);
+// Pastikan tabel proteksi redirect tersedia (jalan di lokal & saat cold start serverless)
+initRedirectTables()
+  .then(() => console.log('Redirect protection tables siap.'))
+  .catch((e) => console.error('Gagal init tabel redirect:', e.message));
 
-  // Pastikan tabel proteksi redirect tersedia
-  initRedirectTables()
-    .then(() => console.log('   Redirect protection tables siap.'))
-    .catch((e) => console.error('   Gagal init tabel redirect:', e.message));
-});
+// Hanya panggil listen saat dijalankan langsung (node server.js), bukan di serverless
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n✅ ANTI-JUDOL berjalan di http://localhost:${PORT}`);
+    console.log(`   Frontend : http://localhost:${PORT}`);
+    console.log(`   API      : http://localhost:${PORT}/api\n`);
+  });
+}
+
+// Ekspor app agar bisa dipakai sebagai serverless function (Vercel: api/index.js)
+module.exports = app;
