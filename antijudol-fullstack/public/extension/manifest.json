@@ -30,39 +30,11 @@
     },
     {
       "matches": ["<all_urls>"],
-      "js": ["redirect-guard.js"],
-      "run_at": "document_start",
-      "all_frames": true,
-      "world": "MAIN"
-    },
-    {
-      "matches": ["<all_urls>"],
-      "js": ["redirect-bridge.js"],
-      "run_at": "document_start",
-      "all_frames": true
-    }
-  ],
-  "declarative_net_request": {
-    "rule_resources": [
-      {
-        "id": "gambling_blocklist",
-        "enabled": true,
-        "path": "rules.json"
-      }
-    ]
-  },
-  "action": {
-    "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icon16.png",
-      "48": "icon48.png",
-      "128": "icon128.png"
-    }
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["blocked.html", "alert.mp3"],
-      "matches": ["<all_urls>"]
-    }
-  ]
-}
+      "exclude_matches": [
+        "*://*.google.com/*", "*://*.gstatic.com/*", "*://*.googleusercontent.com/*",
+        "*://*.googleapis.com/*", "*://*.youtube.com/*", "*://*.bing.com/*",
+        "*://*.microsoft.com/*", "*://*.microsoftonline.com/*", "*://*.live.com/*",
+        "*://*.office.com/*", "*://*.office365.com/*", "*://*.sharepoint.com/*",
+        "*://*.github.com/*", "*://*.apple.com/*", "*://*.icloud.com/*",
+        "*://*.whatsapp.com/*", "*://*.discord.com/*", "*://*.slack.com/*",
+        "*://*.zoom.us/*", "*://*.notion.so/*", "*

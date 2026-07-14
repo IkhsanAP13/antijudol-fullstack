@@ -10,6 +10,29 @@
 (function () {
   'use strict';
 
+  // Jangan aktif di aplikasi web tepercaya (selaras dengan redirect-guard.js)
+  function isTrustedHost(raw) {
+    const h = (raw || '').toLowerCase();
+    if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0') return true;
+    if (
+      h.includes('google.') || h.includes('gstatic') || h.includes('googleusercontent') ||
+      h.includes('oaiusercontent') || h.includes('oaistatic')
+    ) return true;
+    const domains = [
+      'youtube.com', 'chatgpt.com', 'openai.com', 'microsoft.com', 'microsoftonline.com',
+      'live.com', 'office.com', 'outlook.com', 'bing.com', 'github.com', 'gitlab.com',
+      'apple.com', 'icloud.com', 'whatsapp.com', 'telegram.org', 'discord.com', 'slack.com',
+      'zoom.us', 'notion.so', 'figma.com', 'canva.com', 'dropbox.com', 'netflix.com',
+      'spotify.com', 'facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'linkedin.com',
+      'tiktok.com', 'reddit.com', 'wikipedia.org', 'wikimedia.org',
+    ];
+    if (domains.some((d) => h === d || h.endsWith('.' + d))) return true;
+    const tlds = ['.go.id', '.ac.id', '.edu', '.gov', '.sch.id', '.mil'];
+    if (tlds.some((t) => h.endsWith(t))) return true;
+    return false;
+  }
+  if (isTrustedHost(location.hostname)) return;
+
   const isTop = window.top === window.self;
 
   // ─── Kirim konfigurasi ke guard (MAIN world) di frame ini ─────────────────
@@ -206,36 +229,4 @@
   function mkButton(text, bg, color) {
     const b = document.createElement('button');
     b.textContent = text;
-    b.style.cssText = [
-      'padding:7px 12px', 'border:none', 'border-radius:8px', 'cursor:pointer',
-      'font-size:12px', 'font-weight:600', 'background:' + bg, 'color:' + color,
-    ].join(';');
-    return b;
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
-    );
-  }
-
-  // ─── Aksi pengguna ────────────────────────────────────────────────────────
-  function allowOnce(entry) {
-    // Izinkan retry di guard (jika halaman mencoba lagi) ...
-    try {
-      window.postMessage({ source: 'ANTIJUDOL_RG_ALLOW_ONCE', url: entry.url }, '*');
-    } catch (e) {}
-    // ... dan buka tujuannya lewat background (navigasi asli sudah dibatalkan)
-    try {
-      chrome.runtime.sendMessage({ type: 'rgAllowOnce', url: entry.url, method: entry.method });
-    } catch (e) {}
-  }
-
-  function whitelistDomain(host) {
-    try {
-      chrome.runtime.sendMessage({ type: 'rgWhitelistLocal', domain: host }, () => requestConfig());
-    } catch (e) {}
-  }
-
-  console.log('[ANTI-JUDOL] Redirect Bridge aktif (isolated world)');
-})();
+    b.style.cssText 

@@ -445,10 +445,4 @@ export default function Dashboard() {
             <Statistics logs={logs} />
           </TabsContent>
           <TabsContent value="alerts">
-            <RealtimeAlerts logs={logs} />
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
-  );
-}
+            <Realt

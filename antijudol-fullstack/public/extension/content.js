@@ -67,6 +67,12 @@
     'hukumonline.com', 'komdigi.go.id', 'kominfo.go.id', 'mkri.id',
     'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com',
     'tiktok.com', 'reddit.com', 'github.com', 'medium.com', 'scholar.google.com',
+    // Aplikasi web berat (agar tidak diutak-atik / rusak)
+    'chatgpt.com', 'openai.com', 'oaiusercontent.com', 'microsoft.com', 'microsoftonline.com',
+    'live.com', 'office.com', 'outlook.com', 'bing.com', 'apple.com', 'icloud.com',
+    'whatsapp.com', 'telegram.org', 'discord.com', 'slack.com', 'zoom.us', 'notion.so',
+    'figma.com', 'canva.com', 'dropbox.com', 'netflix.com', 'spotify.com', 'linkedin.com',
+    'gitlab.com',
   ];
 
   function hostIsAllowlisted(rawHost) {
@@ -152,6 +158,17 @@
       (titleMkt && (jargonHits >= 1 || /(gacor|maxwin|resmi|terpercaya|deposit)/.test(title))) ||
       (metaMkt && jargonHits >= 1);
 
+    // F. Judul tab JELAS judol — situs judol (bahkan yang isinya cuma gambar)
+    //    hampir selalu menaruh frasa ini di <title>. Ini sinyal sangat kuat.
+    const TITLE_STRONG = [
+      'situs slot', 'slot gacor', 'slot online', 'slot depo', 'depo slot', 'judi slot',
+      'bandar togel', 'bandar judi', 'agen slot', 'agen togel', 'toto togel', 'situs togel',
+      'auto gacor', 'depo 5k', 'depo 10k', 'depo 25k', 'slot deposit', 'link slot',
+      'raih maxwin', 'situs judi',
+    ];
+    const titlePlusMeta = title + ' ' + meta;
+    const titleHits = TITLE_STRONG.filter((k) => titlePlusMeta.includes(k)).length;
+
     const cats = {
       url: catUrl,
       jargon: catJargon,
@@ -160,8 +177,9 @@
       meta: catMeta,
     };
     const fired = Object.values(cats).filter(Boolean).length;
-    const strongCombo = catUrl && catJargon; // domain judol + jargon = sudah cukup
-    return { fired, strongCombo, cats };
+    // Blokir bila: kombinasi domain judol+jargon, ATAU judul/meta jelas judol.
+    const strongCombo = (catUrl && catJargon) || titleHits >= 1;
+    return { fired, strongCombo, cats, titleHits };
   }
 
   function checkGamblingSite() {
@@ -185,6 +203,12 @@
   // entri hasil yang merupakan situs judi/deface. Hasil sah tetap terlihat.
   function isSearchEngine(rawHost) {
     const host = (rawHost || '').toLowerCase();
+    // Domain Google: hanya HALAMAN PENCARIAN (www.google.* atau google.<tld> root)
+    // yang dianggap mesin pencari. Gmail/Drive/Docs/Maps/dll. TIDAK boleh disaring
+    // (kalau tidak, DOM aplikasi Google ikut disembunyikan → mis. inbox Gmail kosong).
+    if (host.includes('google.')) {
+      return host.startsWith('www.google.') || /^google\.[a-z.]+$/.test(host);
+    }
     return SEARCH_ENGINES.some((s) => host.includes(s));
   }
 
@@ -561,57 +585,16 @@
   setInterval(runChecks, 1500);
 
   // Pantau perubahan DOM (iklan sering disuntikkan belakangan)
+  let obsTimer = null;
   const observer = new MutationObserver((mutations) => {
     const host = location.hostname;
-    if (isSearchEngine(host)) {
-      filterSearchResults(); // saring hasil judol yg dimuat saat scroll
-      return;
-    }
-    if (hostIsAllowlisted(host)) return; // jangan sentuh situs tepercaya
-    let shouldScan = false;
+    if (hostIsAllowlisted(host) && !isSearchEngine(host)) return; // situs tepercaya: lewati
+    let added = false;
     for (const m of mutations) {
       if (m.addedNodes.length > 0) {
-        shouldScan = true;
+        added = true;
         break;
       }
     }
-    if (shouldScan) scanForAds();
-  });
-
-  function startObserver() {
-    if (document.body) {
-      observer.observe(document.body, { childList: true, subtree: true });
-    }
-  }
-  if (document.body) startObserver();
-  else document.addEventListener('DOMContentLoaded', startObserver);
-
-  // Indikator visual jumlah blokir
-  function addIndicator() {
-    if (document.getElementById('antijudol-indicator')) return;
-    const indicator = document.createElement('div');
-    indicator.id = 'antijudol-indicator';
-    indicator.style.cssText = `
-      position: fixed; bottom: 20px; right: 20px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white; padding: 8px 16px; border-radius: 20px;
-      font-family: system-ui, -apple-system, sans-serif; font-size: 12px;
-      font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      z-index: 2147483647; pointer-events: none; transition: opacity 0.3s;
-    `;
-    indicator.textContent = `🛡️ ANTI-JUDOL: ${adsBlockedCount} diblokir`;
-    document.body.appendChild(indicator);
-
-    setInterval(() => {
-      const existing = document.getElementById('antijudol-indicator');
-      if (existing) existing.textContent = `🛡️ ANTI-JUDOL: ${adsBlockedCount} diblokir`;
-    }, 1000);
-  }
-
-  if (!hostIsAllowlisted(location.hostname)) {
-    if (document.body) addIndicator();
-    else document.addEventListener('DOMContentLoaded', addIndicator);
-  }
-
-  console.log('[ANTI-JUDOL] Content Script Active - Monitoring for gambling content');
-})();
+    if (!added || obsTimer) return;
+    // Debounce: hindari beban di halaman yang DOM-nya sering berubah (SPA

@@ -12,6 +12,23 @@ const CONFIG = {
   SYNC_INTERVAL: 300000, // 5 menit
 };
 
+// Domain tepercaya yang TIDAK PERNAH dikenai aturan DNR (agar Gmail/Google Workspace,
+// aplikasi besar, dsb. tidak salah blokir — mereka memuat konten via iframe lintas-domain).
+const TRUSTED_DNR_DOMAINS = [
+  "google.com", "googleusercontent.com", "gstatic.com", "googleapis.com",
+  "youtube.com", "ytimg.com", "ggpht.com",
+  "microsoft.com", "microsoftonline.com", "office.com", "office365.com",
+  "live.com", "outlook.com", "bing.com", "sharepoint.com",
+  "github.com", "githubusercontent.com", "githubassets.com",
+  "apple.com", "icloud.com", "whatsapp.com", "telegram.org",
+  "discord.com", "discordapp.com", "slack.com", "zoom.us",
+  "notion.so", "figma.com", "canva.com", "dropbox.com",
+  "netflix.com", "spotify.com", "facebook.com", "fbcdn.net",
+  "instagram.com", "twitter.com", "x.com", "twimg.com",
+  "linkedin.com", "licdn.com", "tiktok.com", "reddit.com",
+  "redditstatic.com", "wikipedia.org", "wikimedia.org",
+];
+
 let deviceId = null;
 let deviceToken = null; // token rahasia per perangkat (anti-spoof laporan)
 let logQueue = [];
@@ -194,13 +211,19 @@ async function updateBlocklist() {
         blocklist,
         lastBlocklistUpdate: Date.now(),
       });
-      await updateNetRequestRules(blocklist);
       console.log("Blocklist updated:", blocklist.length, "domains");
     }
   } catch (error) {
     console.error("Failed to update blocklist:", error);
     const stored = await chrome.storage.local.get(["blocklist"]);
     blocklist = stored.blocklist || getDefaultBlocklist();
+  }
+  // Selalu bangun ulang aturan DNR (mis. saat reload agar pengecualian domain
+  // tepercaya diterapkan) walau fetch blocklist gagal / memakai cache.
+  try {
+    await updateNetRequestRules(blocklist);
+  } catch (e) {
+    console.error("Failed to (re)build DNR rules:", e);
   }
 }
 
@@ -235,13 +258,23 @@ async function updateNetRequestRules(domains) {
             ? { regexSubstitution: blockedPage + "?u=\\0" }
             : { extensionPath: "/blocked.html" },
         },
-        condition: { regexFilter: rx, resourceTypes: ["main_frame"] },
+        condition: {
+          regexFilter: rx,
+          resourceTypes: ["main_frame"],
+          excludedInitiatorDomains: TRUSTED_DNR_DOMAINS,
+          excludedRequestDomains: TRUSTED_DNR_DOMAINS,
+        },
       });
       rules.push({
         id: 2000 + i,
         priority: 2,
         action: { type: "block" },
-        condition: { regexFilter: rx, resourceTypes: ["sub_frame"] },
+        condition: {
+          regexFilter: rx,
+          resourceTypes: ["sub_frame"],
+          excludedInitiatorDomains: TRUSTED_DNR_DOMAINS,
+          excludedRequestDomains: TRUSTED_DNR_DOMAINS,
+        },
       });
     });
     return rules;
@@ -378,164 +411,4 @@ function isGamblingUrl(url) {
     /cuan/i,
     /\bhoki/i,
   ];
-  return gamblingPatterns.some((pattern) => pattern.test(url));
-}
-
-// Cek apakah URL cocok dengan salah satu pola di blocklist (DB/admin)
-function matchesBlocklist(url) {
-  if (!blocklist || blocklist.length === 0) return false;
-  const lower = url.toLowerCase();
-  return blocklist.some((pattern) => {
-    // Ambil "inti" pola: buang protokol & karakter wildcard (* : / )
-    const core = String(pattern)
-      .toLowerCase()
-      .replace(/^\*?:?\/?\/?/, "")
-      .replace(/[*]/g, "")
-      .replace(/^\/+|\/+$/g, "")
-      .trim();
-    return core.length >= 3 && lower.includes(core);
-  });
-}
-
-// Log blocked content
-async function logBlock(type, url, details = {}) {
-  await ensureDeviceId();
-  const log = {
-    deviceId,
-    timestamp: new Date().toISOString(),
-    type, // 'site' atau 'ad'
-    url,
-    ...details,
-  };
-
-  logQueue.push(log);
-
-  // Update stats
-  const { stats } = await chrome.storage.local.get(["stats"]);
-  const s = stats || { sitesBlocked: 0, adsBlocked: 0, lastSync: Date.now() };
-  if (type === "site") s.sitesBlocked++;
-  if (type === "ad") s.adsBlocked++;
-  await chrome.storage.local.set({ stats: s });
-
-  // Autosave: kirim segera jika batch penuh, atau dalam 2 detik (debounced)
-  if (logQueue.length >= CONFIG.LOG_BATCH_SIZE) {
-    await flushLogs();
-  } else {
-    scheduleFlush();
-  }
-}
-
-// Send logs to backend
-async function flushLogs() {
-  if (logQueue.length === 0) return;
-
-  const logsToSend = [...logQueue];
-  logQueue = [];
-
-  try {
-    await ensureDeviceToken();
-    await fetch(`${CONFIG.API_ENDPOINT}/logs`, {
-      method: "POST",
-      headers: reportHeaders(),
-      body: JSON.stringify({ logs: logsToSend }),
-    });
-    console.log("Logs sent:", logsToSend.length);
-  } catch (error) {
-    console.error("Failed to send logs:", error);
-    logQueue = [...logsToSend, ...logQueue]; // re-queue
-  }
-}
-
-// Send heartbeat to backend
-async function sendHeartbeat() {
-  try {
-    await ensureDeviceId();
-    await ensureDeviceToken();
-    const { stats } = await chrome.storage.local.get(["stats"]);
-    await fetch(`${CONFIG.API_ENDPOINT}/heartbeat`, {
-      method: "POST",
-      headers: reportHeaders(),
-      body: JSON.stringify({
-        deviceId,
-        timestamp: new Date().toISOString(),
-        stats: stats || { sitesBlocked: 0, adsBlocked: 0 },
-      }),
-    });
-    console.log("Heartbeat sent");
-  } catch (error) {
-    console.error("Heartbeat failed:", error);
-  }
-}
-
-// Handle alarms
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "heartbeat") {
-    sendHeartbeat();
-  } else if (alarm.name === "syncBlocklist") {
-    updateBlocklist();
-  } else if (alarm.name === "flushLogs") {
-    flushLogs();
-  } else if (alarm.name === "syncRedirectConfig") {
-    updateRedirectConfig();
-  }
-});
-
-// Pemblokiran + redirect situs judi kini sepenuhnya ditangani declarativeNetRequest
-// (rules.json + dynamic rules), sehingga bekerja walau service worker sedang mati.
-// Pencatatan log dilakukan oleh halaman blocked.html yang mengirim pesan 'siteBlocked'.
-
-// Listen for messages from content script, popup & halaman blokir
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "siteBlocked") {
-    logBlock("site", message.url || "unknown", { reason: "blocked site" });
-    sendResponse({ success: true });
-  } else if (message.type === "adBlocked") {
-    logBlock("ad", message.url, {
-      selector: message.selector,
-      reason: message.reason,
-      tabId: sender.tab?.id,
-    });
-    sendResponse({ success: true });
-  } else if (message.type === "getStats") {
-    chrome.storage.local.get(["stats"]).then(({ stats }) => {
-      sendResponse(stats || { sitesBlocked: 0, adsBlocked: 0 });
-    });
-    return true; // async response
-  } else if (message.type === "rgGetConfig") {
-    // Kirim config + whitelist (global admin + lokal) ke bridge
-    getLocalWhitelist().then((localWhitelist) => {
-      sendResponse({
-        config: {
-          enabled: redirectConfig.enabled,
-          sensitivity: redirectConfig.sensitivity,
-        },
-        globalWhitelist: redirectConfig.whitelist || [],
-        localWhitelist,
-      });
-    });
-    return true;
-  } else if (message.type === "rgLog") {
-    postRedirectLog(message.entry || {});
-    sendResponse({ success: true });
-  } else if (message.type === "rgAllowOnce") {
-    // Buka tujuan yang tadi dibatalkan (Allow Once)
-    const url = message.url;
-    if (url) {
-      if (message.method === "window.open") {
-        chrome.tabs.create({ url });
-      } else if (sender.tab && sender.tab.id != null) {
-        chrome.tabs.update(sender.tab.id, { url });
-      } else {
-        chrome.tabs.create({ url });
-      }
-    }
-    sendResponse({ success: true });
-  } else if (message.type === "rgWhitelistLocal") {
-    addLocalWhitelist(message.domain).then((list) =>
-      sendResponse({ success: true, localWhitelist: list }),
-    );
-    return true;
-  }
-});
-
-console.log("ANTI-JUDOL Background Service Worker Ready");
+  return gambli

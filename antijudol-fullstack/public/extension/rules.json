@@ -3,48 +3,48 @@
     "id": 1,
     "priority": 1,
     "action": { "type": "redirect", "redirect": { "extensionPath": "/blocked.html" } },
-    "condition": { "urlFilter": "*bet*", "resourceTypes": ["main_frame"] }
+    "condition": { "urlFilter": "*bet*", "resourceTypes": ["main_frame"], "excludedInitiatorDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"], "excludedRequestDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"] }
   },
   {
     "id": 2,
     "priority": 1,
     "action": { "type": "redirect", "redirect": { "extensionPath": "/blocked.html" } },
-    "condition": { "urlFilter": "*casino*", "resourceTypes": ["main_frame"] }
+    "condition": { "urlFilter": "*casino*", "resourceTypes": ["main_frame"], "excludedInitiatorDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"], "excludedRequestDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"] }
   },
   {
     "id": 3,
     "priority": 1,
     "action": { "type": "redirect", "redirect": { "extensionPath": "/blocked.html" } },
-    "condition": { "urlFilter": "*poker*", "resourceTypes": ["main_frame"] }
+    "condition": { "urlFilter": "*poker*", "resourceTypes": ["main_frame"], "excludedInitiatorDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"], "excludedRequestDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"] }
   },
   {
     "id": 4,
     "priority": 1,
     "action": { "type": "redirect", "redirect": { "extensionPath": "/blocked.html" } },
-    "condition": { "urlFilter": "*gambling*", "resourceTypes": ["main_frame"] }
+    "condition": { "urlFilter": "*gambling*", "resourceTypes": ["main_frame"], "excludedInitiatorDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"], "excludedRequestDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"] }
   },
   {
     "id": 5,
     "priority": 1,
     "action": { "type": "redirect", "redirect": { "extensionPath": "/blocked.html" } },
-    "condition": { "urlFilter": "*slot*", "resourceTypes": ["main_frame"] }
+    "condition": { "urlFilter": "*slot*", "resourceTypes": ["main_frame"], "excludedInitiatorDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"], "excludedRequestDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"] }
   },
   {
     "id": 6,
     "priority": 1,
     "action": { "type": "redirect", "redirect": { "extensionPath": "/blocked.html" } },
-    "condition": { "urlFilter": "*judi*", "resourceTypes": ["main_frame"] }
+    "condition": { "urlFilter": "*judi*", "resourceTypes": ["main_frame"], "excludedInitiatorDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"], "excludedRequestDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"] }
   },
   {
     "id": 7,
     "priority": 1,
     "action": { "type": "redirect", "redirect": { "extensionPath": "/blocked.html" } },
-    "condition": { "urlFilter": "*taruhan*", "resourceTypes": ["main_frame"] }
+    "condition": { "urlFilter": "*taruhan*", "resourceTypes": ["main_frame"], "excludedInitiatorDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"], "excludedRequestDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"] }
   },
   {
     "id": 8,
     "priority": 1,
     "action": { "type": "redirect", "redirect": { "extensionPath": "/blocked.html" } },
-    "condition": { "urlFilter": "*togel*", "resourceTypes": ["main_frame"] }
+    "condition": { "urlFilter": "*togel*", "resourceTypes": ["main_frame"], "excludedInitiatorDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"], "excludedRequestDomains": ["google.com", "googleusercontent.com", "gstatic.com", "youtube.com", "microsoft.com", "office.com", "live.com", "outlook.com", "bing.com", "github.com", "apple.com", "icloud.com", "whatsapp.com", "discord.com", "netflix.com", "facebook.com", "instagram.com", "x.com", "linkedin.com", "wikipedia.org"] }
   }
 ]

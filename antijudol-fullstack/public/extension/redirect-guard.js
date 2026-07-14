@@ -14,6 +14,38 @@
 (function () {
   'use strict';
 
+  // ─── Jangan pernah aktif di aplikasi web tepercaya ──────────────────────────
+  // (Gmail/Google, ChatGPT/OpenAI, Microsoft, media sosial, dll.) — agar tidak
+  // mengganggu navigasi internal SPA berat & tidak menimbulkan false positive.
+  function isTrustedHost(raw) {
+    const h = (raw || '').toLowerCase();
+    if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0') return true;
+    if (
+      h.includes('google.') || h.includes('gstatic') || h.includes('googleusercontent') ||
+      h.includes('oaiusercontent') || h.includes('oaistatic')
+    ) return true;
+    const domains = [
+      'youtube.com', 'chatgpt.com', 'openai.com', 'microsoft.com', 'microsoftonline.com',
+      'live.com', 'office.com', 'outlook.com', 'bing.com', 'github.com', 'gitlab.com',
+      'apple.com', 'icloud.com', 'whatsapp.com', 'telegram.org', 'discord.com', 'slack.com',
+      'zoom.us', 'notion.so', 'figma.com', 'canva.com', 'dropbox.com', 'netflix.com',
+      'spotify.com', 'facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'linkedin.com',
+      'tiktok.com', 'reddit.com', 'wikipedia.org', 'wikimedia.org',
+    ];
+    if (domains.some((d) => h === d || h.endsWith('.' + d))) return true;
+    const tlds = ['.go.id', '.ac.id', '.edu', '.gov', '.sch.id', '.mil'];
+    if (tlds.some((t) => h.endsWith(t))) return true;
+    return false;
+  }
+  if (isTrustedHost(location.hostname)) {
+    console.log('[ANTI-JUDOL] Redirect Guard dinonaktifkan di host tepercaya');
+    return;
+  }
+  // Hanya jaga FRAME UTAMA. Iframe (embed, konten lintas-domain seperti pada Gmail,
+  // pembayaran, video) tidak disentuh agar tidak rusak. Navigasi top.location dari
+  // iframe tetap terlindungi karena assign/replace milik frame utama yang dibungkus.
+  if (window.top !== window.self) return;
+
   // ─── Konfigurasi (default aman; diperbarui dari extension via postMessage) ───
   let cfg = {
     enabled: true,
@@ -219,53 +251,4 @@
         return;
       }
       if (target.protocol !== 'http:' && target.protocol !== 'https:') return;
-      if (isSameSite(target) || isWhitelisted(target.hostname) || EXEMPT_RE.test(target.href)) return;
-
-      const r = a.getBoundingClientRect();
-      const viewport = (window.innerWidth || 1) * (window.innerHeight || 1);
-      const bigArea = r.width * r.height > viewport * 0.5;
-
-      let invisible = false;
-      try {
-        const cs = getComputedStyle(a);
-        invisible =
-          parseFloat(cs.opacity) < 0.1 ||
-          cs.visibility === 'hidden' ||
-          (a.textContent.trim() === '' && !a.querySelector('img'));
-      } catch (err) {
-        invisible = false;
-      }
-
-      // Link menutupi >50% layar DAN transparan/tanpa konten → overlay jahat
-      if (bigArea && invisible) {
-        e.preventDefault();
-        e.stopPropagation();
-        report(
-          { reason: 'Klik area kosong dipetakan ke link tersembunyi (overlay)', target: target.href },
-          'overlay-anchor',
-          a.href
-        );
-      }
-    },
-    true
-  );
-
-  // ─── Terima config & perintah dari bridge (isolated world) ───────────────
-  window.addEventListener('message', function (e) {
-    if (e.source !== window) return;
-    const d = e.data;
-    if (!d || typeof d !== 'object') return;
-
-    if (d.source === 'ANTIJUDOL_RG_CFG') {
-      if (d.config && typeof d.config === 'object') {
-        cfg = { enabled: d.config.enabled !== false, sensitivity: d.config.sensitivity || 'medium' };
-      }
-      if (Array.isArray(d.globalWhitelist)) globalWhitelist = d.globalWhitelist;
-      if (Array.isArray(d.localWhitelist)) localWhitelist = d.localWhitelist;
-    } else if (d.source === 'ANTIJUDOL_RG_ALLOW_ONCE' && typeof d.url === 'string') {
-      allowOnceUrl = d.url; // navigasi berikutnya ke URL ini diizinkan sekali
-    }
-  });
-
-  console.log('[ANTI-JUDOL] Redirect Guard aktif (MAIN world)');
-})();
+      if (isS
