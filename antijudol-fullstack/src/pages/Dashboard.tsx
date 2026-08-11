@@ -79,7 +79,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000);
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -416,6 +416,11 @@ export default function Dashboard() {
           </Card>
         </div>
 
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-3">Statistik</h2>
+          <Statistics logs={logs} />
+        </div>
+
         <Tabs defaultValue="devices" className="space-y-4">
           <TabsList>
             <TabsTrigger value="devices">Devices</TabsTrigger>
@@ -423,7 +428,6 @@ export default function Dashboard() {
             <TabsTrigger value="redirect">Proteksi Redirect</TabsTrigger>
             <TabsTrigger value="ads">Iklan Diblokir</TabsTrigger>
             <TabsTrigger value="logs">Blocked Content</TabsTrigger>
-            <TabsTrigger value="statistics">Statistics</TabsTrigger>
             <TabsTrigger value="alerts">Real-time Alerts</TabsTrigger>
           </TabsList>
           <TabsContent value="devices">
@@ -441,8 +445,11 @@ export default function Dashboard() {
           <TabsContent value="logs">
             <BlockedContent logs={logs} loading={loading} />
           </TabsContent>
-          <TabsContent value="statistics">
-            <Statistics logs={logs} />
-          </TabsContent>
           <TabsContent value="alerts">
-            <Realt
+            <RealtimeAlerts logs={logs} />
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
+}

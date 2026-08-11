@@ -1,22 +1,6 @@
-// ============================================================================
-// ANTI-JUDOL — Malicious Redirect Protection (MAIN world)
-// ----------------------------------------------------------------------------
-// Berjalan di "dunia" script halaman (world: MAIN) pada document_start sehingga
-// bisa membungkus API navigasi SEBELUM script halaman memakainya.
-//
-// Prinsip: JANGAN blokir semua redirect. Blokir hanya redirect LINTAS-DOMAIN yang
-// tidak disertai interaksi pengguna yang sah (gesture pada elemen navigasi), atau
-// yang berasal dari klik area kosong / overlay tersembunyi (malvertising).
-// Redirect login/OAuth/pembayaran/CAPTCHA & domain whitelist selalu diizinkan.
-//
-// State disimpan dalam closure (IIFE) agar tidak bisa diubah script halaman.
-// ============================================================================
 (function () {
   'use strict';
 
-  // ─── Jangan pernah aktif di aplikasi web tepercaya ──────────────────────────
-  // (Gmail/Google, ChatGPT/OpenAI, Microsoft, media sosial, dll.) — agar tidak
-  // mengganggu navigasi internal SPA berat & tidak menimbulkan false positive.
   function isTrustedHost(raw) {
     const h = (raw || '').toLowerCase();
     if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0') return true;
@@ -41,28 +25,22 @@
     console.log('[ANTI-JUDOL] Redirect Guard dinonaktifkan di host tepercaya');
     return;
   }
-  // Hanya jaga FRAME UTAMA. Iframe (embed, konten lintas-domain seperti pada Gmail,
-  // pembayaran, video) tidak disentuh agar tidak rusak. Navigasi top.location dari
-  // iframe tetap terlindungi karena assign/replace milik frame utama yang dibungkus.
+
   if (window.top !== window.self) return;
 
-  // ─── Konfigurasi (default aman; diperbarui dari extension via postMessage) ───
   let cfg = {
     enabled: true,
-    sensitivity: 'medium', // 'low' | 'medium' | 'high'
+    sensitivity: 'medium',
   };
-  let globalWhitelist = []; // dari admin (backend)
-  let localWhitelist = []; // dari tombol "Whitelist" pengguna
+  let globalWhitelist = [];
+  let localWhitelist = [];
 
   const GESTURE_WINDOW = { low: 2500, medium: 1500, high: 800 };
 
-  // Jejak interaksi pengguna terakhir yang tepercaya (isTrusted)
   let lastGesture = { t: -Infinity, navElement: false };
 
-  // Izin "Allow Once": URL yang disetujui pengguna untuk 1x navigasi
   let allowOnceUrl = null;
 
-  // Pola yang SELALU diizinkan (login/OAuth/pembayaran/CAPTCHA)
   const EXEMPT_RE = new RegExp(
     [
       'accounts\\.google\\.', 'login\\.microsoftonline\\.', 'login\\.live\\.',
@@ -77,18 +55,17 @@
     'i'
   );
 
-  // ─── Utilitas domain ─────────────────────────────────────────────────────
   function baseDomain(host) {
     const parts = String(host || '').toLowerCase().split('.').filter(Boolean);
     if (parts.length <= 2) return parts.join('.');
-    return parts.slice(-2).join('.'); // pendekatan sederhana eTLD+1
+    return parts.slice(-2).join('.');
   }
 
   function isSameSite(targetUrl) {
     try {
       return baseDomain(targetUrl.hostname) === baseDomain(location.hostname);
     } catch (e) {
-      return true; // gagal parse → anggap aman (jangan blokir)
+      return true;
     }
   }
 
@@ -106,13 +83,12 @@
     return performance.now() - lastGesture.t < win;
   }
 
-  // ─── Pelacakan gesture pengguna (capture phase, hanya event tepercaya) ───────
   const NAV_SELECTOR =
     'a[href], button, [role="button"], input[type="submit"], input[type="button"],' +
     ' input[type="image"], [onclick], summary, label, select, option';
 
   function recordGesture(e) {
-    if (!e.isTrusted) return; // event sintetis dari script diabaikan
+    if (!e.isTrusted) return;
     let navEl = false;
     try {
       navEl = !!(e.target && e.target.closest && e.target.closest(NAV_SELECTOR));
@@ -128,7 +104,6 @@
     window.addEventListener(type, recordGesture, true);
   });
 
-  // ─── Klasifikasi sebuah percobaan navigasi ───────────────────────────────
   function decide(rawUrl, method) {
     if (!cfg.enabled) return { block: false };
 
@@ -136,13 +111,11 @@
     try {
       target = new URL(rawUrl, location.href);
     } catch (e) {
-      return { block: false }; // URL relatif/aneh → biarkan browser yang urus
+      return { block: false };
     }
 
-    // Hanya http/https yang dievaluasi (abaikan blob:, about:, mailto:, dst.)
     if (target.protocol !== 'http:' && target.protocol !== 'https:') return { block: false };
 
-    // Allow Once yang disetujui pengguna
     if (allowOnceUrl && target.href === allowOnceUrl) {
       allowOnceUrl = null;
       return { block: false };
@@ -175,7 +148,6 @@
     return { block, reason, target: target.href };
   }
 
-  // ─── Lapor ke bridge (isolated world) untuk notifikasi + log ─────────────
   function report(info, method, rawUrl) {
     try {
       window.postMessage(
@@ -187,20 +159,19 @@
           from: location.href,
           ts: Date.now(),
         },
-        '*' // internal (page ↔ script kita); aman di file://, sandbox, & opaque origin
+        '*'
       );
     } catch (e) {
-      /* abaikan */
+
     }
   }
 
-  // ─── Bungkus API navigasi ────────────────────────────────────────────────
   const _open = window.open;
   window.open = function (url, name, features) {
     const d = decide(url || '', 'window.open');
     if (d.block) {
       report(d, 'window.open', url);
-      return null; // batalkan popup
+      return null;
     }
     return _open.apply(this, arguments);
   };
@@ -211,7 +182,7 @@
       const d = decide(url, 'location.assign');
       if (d.block) {
         report(d, 'location.assign', url);
-        return; // batalkan navigasi
+        return;
       }
     }
     return _assign.call(this, url);
@@ -229,9 +200,6 @@
     return _replace.call(this, url);
   };
 
-  // ─── Deteksi klik pada OVERLAY / link tersembunyi (blank-area redirect) ──────
-  // Malvertising sering menaruh <a> transparan menutupi seluruh layar sehingga
-  // klik di "area kosong" sebenarnya mengklik link ke domain lain.
   document.addEventListener(
     'click',
     function (e) {
@@ -251,4 +219,51 @@
         return;
       }
       if (target.protocol !== 'http:' && target.protocol !== 'https:') return;
-      if (isS
+      if (isSameSite(target) || isWhitelisted(target.hostname) || EXEMPT_RE.test(target.href)) return;
+
+      const r = a.getBoundingClientRect();
+      const viewport = (window.innerWidth || 1) * (window.innerHeight || 1);
+      const bigArea = r.width * r.height > viewport * 0.5;
+
+      let invisible = false;
+      try {
+        const cs = getComputedStyle(a);
+        invisible =
+          parseFloat(cs.opacity) < 0.1 ||
+          cs.visibility === 'hidden' ||
+          (a.textContent.trim() === '' && !a.querySelector('img'));
+      } catch (err) {
+        invisible = false;
+      }
+
+      if (bigArea && invisible) {
+        e.preventDefault();
+        e.stopPropagation();
+        report(
+          { reason: 'Klik area kosong dipetakan ke link tersembunyi (overlay)', target: target.href },
+          'overlay-anchor',
+          a.href
+        );
+      }
+    },
+    true
+  );
+
+  window.addEventListener('message', function (e) {
+    if (e.source !== window) return;
+    const d = e.data;
+    if (!d || typeof d !== 'object') return;
+
+    if (d.source === 'ANTIJUDOL_RG_CFG') {
+      if (d.config && typeof d.config === 'object') {
+        cfg = { enabled: d.config.enabled !== false, sensitivity: d.config.sensitivity || 'medium' };
+      }
+      if (Array.isArray(d.globalWhitelist)) globalWhitelist = d.globalWhitelist;
+      if (Array.isArray(d.localWhitelist)) localWhitelist = d.localWhitelist;
+    } else if (d.source === 'ANTIJUDOL_RG_ALLOW_ONCE' && typeof d.url === 'string') {
+      allowOnceUrl = d.url;
+    }
+  });
+
+  console.log('[ANTI-JUDOL] Redirect Guard aktif (MAIN world)');
+})();

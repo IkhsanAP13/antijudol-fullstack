@@ -1,8 +1,13 @@
 {
   "manifest_version": 3,
   "name": "ANTI-JUDOL - Campus Gambling Blocker",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Automatically blocks gambling sites and ads, monitors activity for campus administrators",
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
   "permissions": [
     "tabs",
     "webRequest",
@@ -25,6 +30,17 @@
     },
     {
       "matches": ["<all_urls>"],
+      "exclude_matches": [
+        "*://*.google.com/*", "*://*.gstatic.com/*", "*://*.googleusercontent.com/*",
+        "*://*.googleapis.com/*", "*://*.youtube.com/*", "*://*.bing.com/*",
+        "*://*.microsoft.com/*", "*://*.microsoftonline.com/*", "*://*.live.com/*",
+        "*://*.office.com/*", "*://*.office365.com/*", "*://*.sharepoint.com/*",
+        "*://*.github.com/*", "*://*.apple.com/*", "*://*.icloud.com/*",
+        "*://*.whatsapp.com/*", "*://*.discord.com/*", "*://*.slack.com/*",
+        "*://*.zoom.us/*", "*://*.notion.so/*", "*://*.figma.com/*", "*://*.canva.com/*",
+        "*://*.dropbox.com/*", "*://*.netflix.com/*", "*://*.spotify.com/*",
+        "*://*.facebook.com/*", "*://*.instagram.com/*", "*://*.x.com/*", "*://*.linkedin.com/*"
+      ],
       "js": ["redirect-guard.js"],
       "run_at": "document_start",
       "all_frames": true,
@@ -32,6 +48,17 @@
     },
     {
       "matches": ["<all_urls>"],
+      "exclude_matches": [
+        "*://*.google.com/*", "*://*.gstatic.com/*", "*://*.googleusercontent.com/*",
+        "*://*.googleapis.com/*", "*://*.youtube.com/*", "*://*.bing.com/*",
+        "*://*.microsoft.com/*", "*://*.microsoftonline.com/*", "*://*.live.com/*",
+        "*://*.office.com/*", "*://*.office365.com/*", "*://*.sharepoint.com/*",
+        "*://*.github.com/*", "*://*.apple.com/*", "*://*.icloud.com/*",
+        "*://*.whatsapp.com/*", "*://*.discord.com/*", "*://*.slack.com/*",
+        "*://*.zoom.us/*", "*://*.notion.so/*", "*://*.figma.com/*", "*://*.canva.com/*",
+        "*://*.dropbox.com/*", "*://*.netflix.com/*", "*://*.spotify.com/*",
+        "*://*.facebook.com/*", "*://*.instagram.com/*", "*://*.x.com/*", "*://*.linkedin.com/*"
+      ],
       "js": ["redirect-bridge.js"],
       "run_at": "document_start",
       "all_frames": true
@@ -47,7 +74,12 @@
     ]
   },
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
   },
   "web_accessible_resources": [
     {

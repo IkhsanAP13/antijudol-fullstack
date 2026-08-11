@@ -133,4 +133,8 @@ export default function Login() {
 
         <p className="text-center text-xs text-muted-foreground mt-6">
           Sistem Monitoring & Pemblokiran Konten Judi · Kampus
-    
+        </p>
+      </div>
+    </div>
+  );
+}

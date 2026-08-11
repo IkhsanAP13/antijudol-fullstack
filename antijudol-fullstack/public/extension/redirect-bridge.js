@@ -1,16 +1,6 @@
-// ============================================================================
-// ANTI-JUDOL — Malicious Redirect Protection (Bridge, isolated world)
-// ----------------------------------------------------------------------------
-// Jembatan antara guard (MAIN world) dan extension:
-//  - Mengambil konfigurasi + whitelist dari background, mengirimnya ke guard.
-//  - Menerima event "redirect diblokir" dari guard, menampilkan notifikasi
-//    in-page, mencatat log ke backend, serta menangani Allow Once & Whitelist.
-//  - Menetralkan <meta http-equiv="refresh"> lintas-domain otomatis.
-// ============================================================================
 (function () {
   'use strict';
 
-  // Jangan aktif di aplikasi web tepercaya (selaras dengan redirect-guard.js)
   function isTrustedHost(raw) {
     const h = (raw || '').toLowerCase();
     if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0') return true;
@@ -35,7 +25,6 @@
 
   const isTop = window.top === window.self;
 
-  // ─── Kirim konfigurasi ke guard (MAIN world) di frame ini ─────────────────
   function pushConfigToGuard(data) {
     try {
       window.postMessage(
@@ -45,10 +34,10 @@
           globalWhitelist: data.globalWhitelist || [],
           localWhitelist: data.localWhitelist || [],
         },
-        '*' // internal (page ↔ script kita); aman di file://, sandbox, & opaque origin
+        '*'
       );
     } catch (e) {
-      /* abaikan */
+
     }
   }
 
@@ -59,11 +48,10 @@
         pushConfigToGuard(resp);
       });
     } catch (e) {
-      /* extension context invalid saat reload; abaikan */
+
     }
   }
 
-  // Ambil config di awal, lalu segarkan berkala & saat background memberitahu
   requestConfig();
   setInterval(requestConfig, 60000);
   try {
@@ -71,10 +59,9 @@
       if (msg && msg.type === 'rgConfigUpdated') requestConfig();
     });
   } catch (e) {
-    /* abaikan */
+
   }
 
-  // ─── Netralkan meta refresh lintas-domain (auto redirect) ─────────────────
   function neutralizeMetaRefresh() {
     document.querySelectorAll('meta[http-equiv="refresh" i]').forEach((m) => {
       const content = m.getAttribute('content') || '';
@@ -104,7 +91,6 @@
   neutralizeMetaRefresh();
   document.addEventListener('DOMContentLoaded', neutralizeMetaRefresh);
 
-  // ─── Terima event blokir dari guard ──────────────────────────────────────
   window.addEventListener('message', function (e) {
     if (e.source !== window) return;
     const d = e.data;
@@ -121,7 +107,7 @@
   }
 
   function onBlocked(entry) {
-    // Catat ke backend (lewat background). Hanya sekali per event.
+
     try {
       chrome.runtime.sendMessage({
         type: 'rgLog',
@@ -134,26 +120,24 @@
         },
       });
     } catch (e) {
-      /* abaikan */
+
     }
-    // Notifikasi hanya di frame teratas agar tidak dobel dari iframe
+
     if (isTop) showNotification(entry);
   }
 
-  // ─── Suara alert (MP3 EAS yang dibundel) saat notifikasi muncul ─────────
   function playBlockAlert() {
     try {
       const url = chrome.runtime.getURL('alert.mp3');
       const audio = new Audio(url);
       audio.volume = 1.0;
       const p = audio.play();
-      if (p && p.catch) p.catch(function () { /* autoplay diblokir; abaikan */ });
+      if (p && p.catch) p.catch(function () {  });
     } catch (e) {
-      /* abaikan */
+
     }
   }
 
-  // ─── UI notifikasi in-page ────────────────────────────────────────────────
   let container = null;
 
   function ensureContainer() {
@@ -170,7 +154,7 @@
   }
 
   function showNotification(entry) {
-    playBlockAlert(); // bunyikan alert saat notifikasi muncul
+    playBlockAlert();
     const host = hostOf(entry.url);
     const card = document.createElement('div');
     card.style.cssText = [
@@ -222,11 +206,41 @@
     const box = ensureContainer();
     box.appendChild(card);
 
-    // Auto-hilang setelah 12 detik
     setTimeout(() => card.remove(), 12000);
   }
 
   function mkButton(text, bg, color) {
     const b = document.createElement('button');
     b.textContent = text;
-    b.style.cssText 
+    b.style.cssText = [
+      'padding:7px 12px', 'border:none', 'border-radius:8px', 'cursor:pointer',
+      'font-size:12px', 'font-weight:600', 'background:' + bg, 'color:' + color,
+    ].join(';');
+    return b;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+    );
+  }
+
+  function allowOnce(entry) {
+
+    try {
+      window.postMessage({ source: 'ANTIJUDOL_RG_ALLOW_ONCE', url: entry.url }, '*');
+    } catch (e) {}
+
+    try {
+      chrome.runtime.sendMessage({ type: 'rgAllowOnce', url: entry.url, method: entry.method });
+    } catch (e) {}
+  }
+
+  function whitelistDomain(host) {
+    try {
+      chrome.runtime.sendMessage({ type: 'rgWhitelistLocal', domain: host }, () => requestConfig());
+    } catch (e) {}
+  }
+
+  console.log('[ANTI-JUDOL] Redirect Bridge aktif (isolated world)');
+})();
