@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Shield, Monitor, Activity, BarChart3, Lock, CheckCircle2 } from 'lucide-react';
+import { Shield, Monitor, Activity, BarChart3, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -46,9 +46,15 @@ const Index = () => {
                   Lihat Dashboard
                 </Button>
               </Link>
-              <Button size="lg" variant="outline">
-                <Shield className="mr-2 h-5 w-5" />
-                Download Extension
+              <Button asChild size="lg" variant="outline">
+                <a
+                  href="https://chromewebstore.google.com/detail/fakbdnpjnpeojlcjfhjfagdjhglcepjf?utm_source=item-share-cb"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Shield className="mr-2 h-5 w-5" />
+                  Download Extension
+                </a>
               </Button>
             </div>
           </div>
@@ -110,16 +116,6 @@ const Index = () => {
                 <CardTitle>Statistik & Laporan</CardTitle>
                 <CardDescription>
                   Analitik lengkap dengan grafik, timeline, dan export laporan untuk dokumentasi
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-2 hover:border-primary/50 transition-colors">
-              <CardHeader>
-                <CheckCircle2 className="h-12 w-12 text-primary mb-4" />
-                <CardTitle>Tamper Protection</CardTitle>
-                <CardDescription>
-                  Extension dilindungi dari modifikasi dan tidak bisa dinonaktifkan oleh mahasiswa
                 </CardDescription>
               </CardHeader>
             </Card>
